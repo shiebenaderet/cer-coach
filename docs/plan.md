@@ -42,3 +42,7 @@ Read the question. Find the evidence. Answer it. Prove it. Explain why. Check it
 - No AI feedback for now; rule-based only.
 - Finished CERs are written on paper and turned in on Canvas or in class.
 - Sources per question: short web excerpts with citations, PDFs, documents, images.
+
+## Parked: CER to Multi-Paragraph Essay
+
+On hold until the single CER is solid. Idea: the claim becomes a thesis with two reasons, each reason becomes its own CER body paragraph, the counterpoint becomes its own paragraph, then add an intro and conclusion. Possible builds later: an Essay version in the app, a multi-paragraph outline sheet, and a worked example. Research: SRSD (DARE), De La Paz and Monte-Sano, The Writing Revolution (single- to multi-paragraph outlines).
