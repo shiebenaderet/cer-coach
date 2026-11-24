@@ -61,7 +61,13 @@ export default {
         return await fn({ request, env, params, waitUntil: ctx.waitUntil.bind(ctx) });
       } catch (e) {
         console.error(e);
-        return new Response(JSON.stringify({ error: 'Something went wrong on the server.' }), {
+        // Name setup problems plainly; keep other errors generic.
+        const m = String(e && e.message || '');
+        let error = 'Something went wrong on the server.';
+        if (/SESSION_SECRET/.test(m)) error = 'Setup problem: the SESSION_SECRET secret is missing on the Worker.';
+        else if (/no such table/i.test(m)) error = 'Setup problem: the database tables are missing.';
+        else if (/DB|D1|binding/i.test(m) && !env.DB) error = 'Setup problem: the database is not connected to the Worker.';
+        return new Response(JSON.stringify({ error }), {
           status: 500, headers: { 'content-type': 'application/json' },
         });
       }
