@@ -10,7 +10,7 @@ ALLOWED_DOMAIN = "edmonds.wednet.edu"
 # Always approved, and can approve other teachers. Comma-separated.
 ADMIN_EMAILS = "benaderets885@edmonds.wednet.edu"
 # Public Google sign-in client ID (Google Cloud Console > Credentials). Not a secret.
-GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_ID = "554333771584-cg02cvopa6kqphvter0rc8fmm04rktoa.apps.googleusercontent.com"
 # "From" address for emailed sign-in codes (needs a verified sending domain in Resend).
 MAIL_FROM = "CER Coach <coach@mrbsocialstudies.org>"
 
