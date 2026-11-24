@@ -4,6 +4,8 @@ name = "cer-coach"
 main = "worker/index.js"
 compatibility_date = "2026-11-01"
 workers_dev = true
+# Keep variables added in the Cloudflare dashboard when Workers Builds deploys.
+keep_vars = true
 
 [assets]
 directory = "site"
