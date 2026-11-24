@@ -234,7 +234,12 @@ function exampleBox(move, html) {
   if (L === 2) return `<details class="example"><summary><b>See an Example (Different Question)</b></summary><p class="muted small">${esc(EXAMPLE.question)}</p>${html}</details>`;
   return '';
 }
-const bank = (label, ws) => `<div class="bank"><b>${esc(label)}:</b>${ws.map(esc).join(' · ')}</div>`;
+// Plain word lists show inline; a teacher word bank with "term: definition" lines shows as a list.
+function bank(label, ws) {
+  const split = ws.map((w) => { const i = w.indexOf(':'); return i > 0 ? [w.slice(0, i).trim(), w.slice(i + 1).trim()] : [w.trim(), '']; });
+  if (!split.some(([, d]) => d)) return `<div class="bank"><b>${esc(label)}:</b>${split.map(([t]) => esc(t)).join(' · ')}</div>`;
+  return `<div class="bank"><b>${esc(label)}</b><dl class="terms">${split.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join('')}</dl></div>`;
+}
 
 // ---------------------------------------------------------------- stations
 function renderStation(n) {

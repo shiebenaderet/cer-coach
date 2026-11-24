@@ -200,8 +200,8 @@ async function renderBuilder() {
       <fieldset class="field"><legend class="q" style="font-weight:800">Default version</legend>
         <p class="small muted">Quick and Clear use 2 pieces of evidence. Full and Deep use 3 and require a counterpoint. Students can change it.</p>
         <div class="choice">${VERSIONS.map((v) => `<label><input type="radio" name="b_version" value="${v}" ${d.version === v ? 'checked' : ''}>${v}</label>`).join('')}</div></fieldset>
-      <div class="field"><label for="b_words">Ideas from class <span class="hint">(word bank, separated by commas)</span></label>
-        <input type="text" id="b_words" data-k="wordBank" value="${esc((d.wordBank || []).join(', '))}"></div>
+      <div class="field"><label for="b_words">Ideas from class <span class="hint">(word bank: one term per line; add a definition after a colon if you want)</span></label>
+        <textarea id="b_words" data-k="wordBank" rows="5" placeholder="sovereignty: the power of a nation to govern itself&#10;treaty: a formal agreement between nations, signed by both sides&#10;cede">${esc((d.wordBank || []).join('\n'))}</textarea></div>
     </div>
     <div class="card form">
       <div class="row"><h2>Sources</h2><span class="spacer"></span><span class="small muted">${d.sources.length} of 12</span></div>
@@ -256,7 +256,7 @@ function readForm() {
   draft.question = $('#b_question').value;
   draft.title = $('#b_title').value;
   draft.unit = $('#b_unit').value;
-  draft.wordBank = $('#b_words').value.split(',').map((w) => w.trim()).filter(Boolean);
+  draft.wordBank = $('#b_words').value.split(/\r?\n/).map((w) => w.trim()).filter(Boolean);
   const v = f.querySelector('input[name=b_version]:checked'); if (v) draft.version = v.value;
   f.querySelectorAll('[data-s]').forEach((el) => {
     const [i, k] = el.dataset.s.split('.');

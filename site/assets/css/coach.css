@@ -154,6 +154,10 @@ textarea.short { min-height: 48px; }
 
 .bank { border: 1px dashed var(--line-strong); border-radius: 8px; padding: 8px 12px; font-size: .92rem; }
 .bank b { margin-right: 6px; }
+.bank .terms { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 6px 0 0; }
+.bank .terms dt { font-weight: 800; }
+.bank .terms dd { margin: 0; }
+@media (max-width: 640px) { .bank .terms { grid-template-columns: 1fr; } .bank .terms dd { margin-bottom: 6px; } }
 .example { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: 12px 16px; background: #fdfbf6; font-size: .95rem; }
 .example .kicker { display: block; margin-bottom: 4px; }
 
