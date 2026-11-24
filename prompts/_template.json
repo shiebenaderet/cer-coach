@@ -1,0 +1,39 @@
+{
+  "id": "your-slug-here",
+  "title": "Short Title Students See in the List",
+  "unit": "Unit 3: Building a Government",
+  "question": "The full CER question, as students should read it?",
+  "version": "Full",
+  "wordBank": ["unit word", "unit word", "unit word"],
+  "sources": [
+    {
+      "type": "excerpt",
+      "title": "Source Title",
+      "note": "One line on what this is, if students need it.",
+      "excerpt": "Only the part of the page students need.\n\nA blank line starts a new paragraph.",
+      "citation": "Author or organization, \"Title,\" publication or site, date.",
+      "url": "https://link-to-the-full-original"
+    },
+    {
+      "type": "pdf",
+      "title": "Class Reading",
+      "file": "sources/your-slug-here/reading.pdf",
+      "citation": "Mr. B, class reading, 2026."
+    },
+    {
+      "type": "image",
+      "title": "Map or Picture",
+      "file": "sources/your-slug-here/map.png",
+      "alt": "Describe what the image shows for screen readers.",
+      "citation": "Creator, title, date. Collection or site.",
+      "url": "https://link-to-the-original"
+    },
+    {
+      "type": "doc",
+      "title": "Document File",
+      "file": "sources/your-slug-here/handout.docx",
+      "excerpt": "Optional: the passage students should focus on.",
+      "citation": "Who made it, and when."
+    }
+  ]
+}

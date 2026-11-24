@@ -1,0 +1,33 @@
+{
+  "id": "school-start",
+  "title": "Practice: Should Our School Start Later?",
+  "unit": "Practice Question",
+  "question": "Should middle schools start later in the morning?",
+  "version": "Full",
+  "wordBank": ["health", "evidence", "experts", "trade-off", "schedule", "learning"],
+  "sources": [
+    {
+      "type": "excerpt",
+      "title": "How Much Sleep Teens Need",
+      "note": "Key facts from the page.",
+      "excerpt": "Recommended sleep for ages 13 to 18: \"8 to 10 hours per 24 hours.\"\n\nAccording to data from 2025, 75% of students are not getting adequate sleep.",
+      "citation": "Centers for Disease Control and Prevention, \"Sleep and Health,\" Healthy Schools, updated September 2026.",
+      "url": "https://www.cdc.gov/healthy-schools/sleep/index.html"
+    },
+    {
+      "type": "excerpt",
+      "title": "What Doctors Recommend About Start Times",
+      "note": "Key facts from the same page.",
+      "excerpt": "In 2014, the American Academy of Pediatrics recommended that middle and high schools start \"no earlier than 8:30 AM.\"\n\nThe page says late bedtimes plus early start times leave most teens short on sleep.",
+      "citation": "Centers for Disease Control and Prevention, \"Sleep and Health,\" Healthy Schools, updated September 2026.",
+      "url": "https://www.cdc.gov/healthy-schools/sleep/index.html"
+    },
+    {
+      "type": "link",
+      "title": "Find a Source for the Other Side",
+      "note": "Counterpoint practice: who might disagree with a later start (families, coaches, bus planners)? Find one source that gives their reasons and log it.",
+      "excerpt": "",
+      "citation": ""
+    }
+  ]
+}
