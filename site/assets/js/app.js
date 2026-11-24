@@ -32,7 +32,10 @@ async function loadPrompt(id) {
   if (id === 'open') {
     prompt = { id: 'open', title: 'Your Own Question', question: '', version: 'Full', sources: [], wordBank: [] };
   } else {
-    prompt = await getJSON(`prompts/${encodeURIComponent(id)}.json`);
+    // Built-in practice prompts are static files; teacher-built CERs come from the API.
+    prompt = await getJSON(`/prompts/${encodeURIComponent(id)}.json`)
+      .catch(() => getJSON(`/api/prompts/${encodeURIComponent(id)}`));
+    if (!Array.isArray(prompt.sources)) prompt.sources = [];
   }
   work = loadWork(prompt.id) || blankWork(prompt.id, prompt.version || 'Full');
   if (prompt.id === 'open') {

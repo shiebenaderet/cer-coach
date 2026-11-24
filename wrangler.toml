@@ -1,0 +1,28 @@
+# Cloudflare Pages config for CER Coach.
+# Static site: site/   API: functions/ (Pages Functions)   Shared server code: lib/
+name = "cer-coach"
+compatibility_date = "2026-11-01"
+pages_build_output_dir = "site"
+
+[vars]
+# Teachers must sign in with an account at this domain.
+ALLOWED_DOMAIN = "edmonds.wednet.edu"
+# Always approved, and can approve other teachers. Comma-separated.
+ADMIN_EMAILS = "benaderets885@edmonds.wednet.edu"
+# Public Google sign-in client ID (Google Cloud Console > Credentials). Not a secret.
+GOOGLE_CLIENT_ID = ""
+# "From" address for emailed sign-in codes (needs a verified sending domain in Resend).
+MAIL_FROM = "CER Coach <coach@mrbsocialstudies.org>"
+
+# Secrets are set in the Cloudflare dashboard, never here:
+#   SESSION_SECRET  long random string that signs sign-in cookies
+#   RESEND_API_KEY  only needed for the emailed-code sign-in
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cer-coach"
+database_id = "10c7044e-8b02-45a3-9d05-e7626fe687b5"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "cer-coach-files"
