@@ -1,8 +1,13 @@
-# Cloudflare Pages config for CER Coach.
-# Static site: site/   API: functions/ (Pages Functions)   Shared server code: lib/
+# Cloudflare Worker config for CER Coach.
+# Static site: site/ (Workers Static Assets)   API: worker/index.js routes to routes/   Shared server code: lib/
 name = "cer-coach"
+main = "worker/index.js"
 compatibility_date = "2026-11-01"
-pages_build_output_dir = "site"
+workers_dev = true
+
+[assets]
+directory = "site"
+binding = "ASSETS"
 
 [vars]
 # Teachers must sign in with an account at this domain.

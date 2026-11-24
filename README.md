@@ -2,7 +2,7 @@
 
 A step-by-step coach that helps 8th graders build a Claim, Evidence and Reasoning (CER) response to any question, with a matching paper set and a teacher dashboard for building CERs. Supports fade as students show they can do each part alone.
 
-Live site: **https://cer.mrbsocialstudies.org** (Cloudflare Pages, deployed from `main`).
+Live site: **https://cer.mrbsocialstudies.org** (a Cloudflare Worker with static assets, deployed from `main` by Workers Builds).
 
 ## Students
 
@@ -22,12 +22,13 @@ Live site: **https://cer.mrbsocialstudies.org** (Cloudflare Pages, deployed from
 ## How It's Built
 
 ```
-site/                  static files (the Pages output folder)
+site/                  static files (served by Workers Static Assets)
   index.html           student app
   teach/index.html     teacher dashboard
   assets/js/           app.js, rules.js, content.js, store.js (students); teach.js (teachers)
   prompts/             built-in practice CERs as JSON
-functions/             Cloudflare Pages Functions (the API)
+worker/index.js        the Worker: routes /api/* and /files/* to routes/
+routes/                API handlers, one file per route
   api/auth/            google.js, code/request.js, code/verify.js, logout.js, dev.js (local only)
   api/access/          request.js (ask for access)
   api/admin/           teachers.js (list, approve, decline)
@@ -53,12 +54,12 @@ docs/plan.md           plan, research base and fade rules
 npm install -g wrangler
 wrangler d1 execute cer-coach --local --file schema.sql
 printf 'SESSION_SECRET=any-long-string\nDEV_LOGIN=1\n' > .dev.vars
-wrangler pages dev
+wrangler dev
 ```
 
 With `DEV_LOGIN=1`, `POST /api/auth/dev {"email": "..."}` signs in without Google, but only on localhost. Never set `DEV_LOGIN` in Cloudflare.
 
-Work on a branch (Cloudflare gives each branch a preview link), then merge to `main` to publish.
+Work on a branch, then merge to `main` to publish. Workers Builds runs `npx wrangler deploy` on every push to `main`.
 
 ## Adding a Built-In Practice CER
 
