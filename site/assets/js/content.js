@@ -15,13 +15,34 @@ export const needsCounter = (v) => v === 'Full' || v === 'Deep';
 export const evidenceNeeded = (v) => (v === 'Quick' || v === 'Clear' ? 2 : 3);
 
 export const STEPS = [
-  { t: 'Read the question.', key: /question|read|unpack/i, qs: ['What is it really asking me to do?', 'Which words do I need to understand?'] },
-  { t: 'Find the evidence.', key: /evidence|source|find|gather/i, qs: ['What do the sources say or show?', 'Who made each source, and when?', 'Where can someone find it?'] },
-  { t: 'Answer it.', key: /answer|claim/i, qs: ['Does my claim answer the question?', 'Could someone disagree?', 'Can my evidence prove it?'] },
-  { t: 'Prove it.', key: /prove|proof|support|choose|best/i, qs: ['Which evidence proves my claim most directly?', 'Did I say where it came from?'] },
-  { t: 'Explain why.', key: /explain|why|reason/i, qs: ['What does this evidence show?', 'Why does it prove my claim?', 'What idea from class does it connect to?'] },
-  { t: 'Check it.', key: /check|revise|review|fix/i, qs: ['Who would disagree, and what is my answer?', 'Did I return to my claim?', 'Would a partner follow it?'] },
+  { t: 'Read the question.', short: 'Read', key: /question|read|unpack/i,
+    line: 'Figure out what the question is really asking before you look for answers.',
+    ex: '"Should our school start later?" asks me to decide yes or no, and why.',
+    qs: ['What is it really asking me to do?', 'Which words do I need to understand?'] },
+  { t: 'Find the evidence.', short: 'Find', key: /evidence|source|find|gather/i,
+    line: 'Collect facts, quotes and details from the sources, and write down where each came from.',
+    ex: 'Doctors say schools should start at 8:30 or later (American Academy of Pediatrics, 2014).',
+    qs: ['What do the sources say or show?', 'Who made each source, and when?', 'Where can someone find it?'] },
+  { t: 'Answer it.', short: 'Answer', key: /answer|claim/i,
+    line: 'Write your claim: one sentence that answers the question and that someone could disagree with.',
+    ex: 'Our school should start later because students would get the sleep doctors say they need.',
+    qs: ['Does my claim answer the question?', 'Could someone disagree?', 'Can my evidence prove it?'] },
+  { t: 'Prove it.', short: 'Prove', key: /prove|proof|support|choose|best/i,
+    line: 'Choose the evidence that proves your claim best.',
+    ex: 'The doctors\' recommendation proves it more directly than a story about one tired student.',
+    qs: ['Which evidence proves my claim most directly?', 'Did I say where it came from?'] },
+  { t: 'Explain why.', short: 'Explain', key: /explain|why|reason/i,
+    line: 'Explain how each piece of evidence proves your claim. This is your reasoning.',
+    ex: 'This proves my claim because the people who study kids\' health most are warning against early starts.',
+    qs: ['What does this evidence show?', 'Why does it prove my claim?', 'What idea from class does it connect to?'] },
+  { t: 'Check it.', short: 'Check', key: /check|revise|review|fix/i,
+    line: 'Answer the other side, reread your work, and fix what is weak.',
+    ex: 'Some people say sports would end later. But sleep affects learning every day.',
+    qs: ['Who would disagree, and what is my answer?', 'Did I return to my claim?', 'Would a partner follow it?'] },
 ];
+
+// Which of the six steps each station practices.
+export const STATION_STEP = { 2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 5 };
 
 export const STATIONS = [
   { n: 1, id: 'setup', name: 'Set Up', move: null },

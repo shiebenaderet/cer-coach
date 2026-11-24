@@ -33,3 +33,7 @@ export const saveLevels = (l) => safe.set('cer:levels', l);
 
 export const loadLast = () => safe.get('cer:last');
 export const saveLast = (id) => safe.set('cer:last', id);
+
+// Things the student has seen across all questions (the six-steps intro).
+export const loadMeta = () => ({ seenSteps: false, finished: 0, ...(safe.get('cer:meta') || {}) });
+export const saveMeta = (m) => safe.set('cer:meta', m);

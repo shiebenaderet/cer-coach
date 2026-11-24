@@ -1,6 +1,6 @@
-import { STATIONS, F, LEVELS, VERSIONS, STEPS, EXAMPLE, TASK_WORDS, HELP_WORDS, MOVES, SELF_QUESTION, needsCounter, evidenceNeeded } from './content.js';
+import { STATIONS, F, VERSIONS, STEPS, STATION_STEP, EXAMPLE, TASK_WORDS, HELP_WORDS, MOVES, SELF_QUESTION, needsCounter, evidenceNeeded } from './content.js';
 import { RULES } from './rules.js';
-import { blankWork, blankRow, loadWork, saveWork, clearWork, loadLevels, saveLevels, loadLast, saveLast } from './store.js';
+import { blankWork, blankRow, loadWork, saveWork, clearWork, loadLevels, saveLevels, loadLast, saveLast, loadMeta, saveMeta } from './store.js';
 
 // ---------------------------------------------------------------- state
 let prompt = null;      // the loaded prompt file
@@ -10,6 +10,8 @@ let sourceTab = 0;
 let pending = null;     // snapshot of flagged answers, so a second Next keeps them
 let selfShown = false;  // Prompted level: self-question shown before the Coach's
 let revealed = {};      // starters / questions opened this visit
+let meta = loadMeta();  // seen the six-steps intro, CERs finished
+let rung = 0;           // Reasoning station: which piece of evidence is showing
 
 const $ = (s, el = document) => el.querySelector(s);
 const main = () => $('#main');
@@ -66,29 +68,64 @@ async function route() {
 
   if (page === 'steps') return renderSteps();
   if (page === 's' && prompt) {
-    const n = Math.min(8, Math.max(1, parseInt(arg, 10) || 1));
+    let n = Math.min(8, Math.max(1, parseInt(arg, 10) || 1));
+    // Stations open in order: a station is open once the one before it is done.
+    if (n > 1 && !work.done[n] && !work.done[n - 1]) {
+      n = firstOpen();
+      history.replaceState(null, '', `#/s/${n}`);
+    }
+    if (n !== 6) rung = 0;
     return n === 1 ? renderStart() : renderStation(n);
   }
   return renderStart();
 }
 
 function go(n) { location.hash = `#/s/${n}`; }
+function firstOpen() { for (let k = 1; k <= 8; k++) if (!work.done[k]) return k; return 8; }
+const isOpen = (n) => n === 1 || work.done[n] || work.done[n - 1];
 
 // ---------------------------------------------------------------- chrome
 function paintChrome(current) {
-  $('#topq').innerHTML = prompt && prompt.question ? `<b>Question:</b> ${esc(prompt.question)}` : '';
+  // Stations show the question in their own card, so the top bar only carries it on the start page.
+  $('#topq').innerHTML = prompt && prompt.question && (!current || current === 1) ? `<b>Question:</b> ${esc(prompt.question)}` : '';
   const nav = $('#stations');
-  if (!prompt || !current) { nav.hidden = true; return; }
+  if (!prompt || !current) { nav.hidden = true; $('#stepstrip').hidden = true; return; }
   nav.hidden = false;
   nav.innerHTML = STATIONS.map((s) => {
     const done = work.done[s.n];
-    const reach = s.n === 1 || done || work.done[s.n - 1] || s.n <= current;
+    const reach = isOpen(s.n);
     const cls = done ? 'done' : '';
     const inner = `<span class="bar"></span><span class="lbl">${s.n} ${esc(s.name)}${done ? ' ✓' : ''}</span>`;
     if (s.n === current) return `<a href="#/s/${s.n}" class="${cls}" aria-current="step" aria-label="Station ${s.n}, ${esc(s.name)}, current">${inner}</a>`;
     return reach ? `<a href="#/s/${s.n}" class="${cls}" aria-label="Station ${s.n}, ${esc(s.name)}${done ? ', done' : ''}">${inner}</a>`
       : `<span aria-label="Station ${s.n}, ${esc(s.name)}, locked">${inner}</span>`;
   }).join('');
+  paintSteps(current);
+}
+
+// The six steps, always in view while working. Names fade to numbers as the student needs less help.
+function paintSteps(current) {
+  const strip = $('#stepstrip');
+  const k = STATION_STEP[current];
+  if (k === undefined || !work) { strip.hidden = true; return; }
+  const avg = (levels.claim.level + levels.evidence.level + levels.reasoning.level) / 3;
+  const compact = avg >= 3;
+  strip.hidden = false;
+  strip.classList.toggle('compact', compact);
+  strip.innerHTML = `<span class="lbl">The Six Steps</span>` + STEPS.map((s, i) =>
+    `<span class="step ${i === k ? 'now' : ''} ${i < k ? 'past' : ''}" ${i === k ? 'aria-current="step"' : ''} title="${esc(s.t)}">` +
+    `<b>${i + 1}</b>${compact ? `<span class="sr">${esc(s.t)}</span>` : ` ${esc(s.short)}`}</span>`).join('');
+}
+
+// The question, and the student's claim once they have one, at the top of every station.
+function questionCard(n) {
+  const claim = n >= 8 ? (work.stress.final || work.claim.first) : work.claim.first;
+  const showClaim = n >= 5 && claim.trim();
+  const wide = window.matchMedia('(min-width: 761px)').matches;
+  return `<details class="qcard" ${wide ? 'open' : ''}><summary><span class="kicker">THE QUESTION</span>
+      <span class="qline">${esc(prompt.question)}</span></summary>
+    <p class="qfull">${esc(prompt.question)}</p>
+    ${showClaim ? `<p class="myclaim"><b>${n >= 8 && work.stress.final ? 'My final claim:' : 'My claim:'}</b> ${esc(claim)}</p>` : ''}</details>`;
 }
 
 function focusMain() { const m = main(); m.focus({ preventScroll: true }); window.scrollTo(0, 0); }
@@ -99,11 +136,6 @@ async function renderStart() {
   let list = [];
   try { list = await getJSON('prompts/index.json'); } catch { list = []; }
 
-  const levelsHTML = Object.keys(MOVES).map((m) => {
-    const L = levels[m].level;
-    return `<div class="lvlrow"><b>${MOVES[m]}</b><div><div class="pips" aria-hidden="true">${[1, 2, 3, 4].map((i) => `<span class="${i <= L ? 'on' : ''}"></span>`).join('')}</div><div class="small muted">${LEVELS[L - 1]}</div></div></div>`;
-  }).join('') + `<p class="small muted" style="margin-top:4px">Model » Guided » Prompted » Solo</p>`;
-
   const picker = `<div class="card"><h2>Pick a Question</h2>
     <p class="muted small">Your teacher may have sent you a link that opens the right one.</p>
     <div class="prompts">${list.map((p) => `<a href="?q=${encodeURIComponent(p.id)}#/s/1"><b>${esc(p.title)}</b><br><span class="muted small">${esc(p.unit || '')}</span></a>`).join('')}
@@ -112,7 +144,7 @@ async function renderStart() {
   if (!prompt) {
     main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
       <div class="card"><h1>CER Coach</h1><p>Build a Claim, Evidence and Reasoning answer one step at a time. The Coach asks questions and pushes back when an answer needs more. As you get stronger, it gives you less help.</p></div>
-      ${picker}</div><div class="side"><div class="card"><h2>Your Support Levels</h2><p class="muted small">These change as you show you can do each part on your own.</p><div class="levels">${levelsHTML}</div></div></div></div></div>`;
+      ${picker}</div><div class="side">${howItWorks()}</div></div></div>`;
     return focusMain();
   }
 
@@ -126,23 +158,39 @@ async function renderStart() {
       <p class="small muted">Use the version your teacher gave you. Full and Deep require a counterpoint.</p>
       <div class="choice">${VERSIONS.map((v) => `<label><input type="radio" name="ver" value="${v}" ${work.version === v ? 'checked' : ''}>${v}</label>`).join('')}</div></fieldset>`;
 
-  const warm = `<div class="card"><h2>Warm-Up: The Six Steps From Memory</h2>
-      <p class="muted small">Type the steps you remember. Then check yourself.</p>
-      <div class="warm" id="warm">${[1, 2, 3, 4, 5, 6].map((i) => `<label for="w${i}"><span>${i}</span><input type="text" id="w${i}" autocomplete="off"></label>`).join('')}</div>
-      <div class="row" style="margin-top:12px"><button class="btn ghost" type="button" data-act="warmcheck">Check Me</button><span id="warmout" class="small" aria-live="polite"></span></div></div>`;
-
+  const steps = meta.seenSteps ? recallCard() : introCard();
   main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
     <div class="card"><div class="kicker">${esc(prompt.unit || 'QUESTION')}</div><h1 style="margin-top:6px">${esc(prompt.question || 'Type your question below.')}</h1>
       <p class="muted small">${prompt.sources.length} source${prompt.sources.length === 1 ? '' : 's'} · Plan here or on paper · Your finished CER is written on paper</p></div>
-    ${openForm}${versionHTML}${warm}
-    <div class="row"><button class="btn" type="button" data-act="begin">Start at Station 2</button>
+    ${openForm}${versionHTML}${steps}
+    <div class="row"><button class="btn" type="button" data-act="begin">${meta.seenSteps ? 'Start at Station 2' : 'Got It. Start at Station 2'}</button>
       <a href="./#/">Pick a different question</a><span class="spacer"></span>
       <button class="btn quiet small" type="button" data-act="reset">Start Over</button></div>
   </div><div class="side">
-    <div class="card"><h2>Your Support Levels</h2><p class="muted small">These change as you show you can do each part on your own.</p><div class="levels">${levelsHTML}</div></div>
+    ${howItWorks()}
     ${sourceList()}
   </div></div></div>`;
   focusMain();
+}
+
+function howItWorks() {
+  return `<div class="card"><h2>How It Works</h2>
+    <p class="small">Eight stations take you from the question to a finished plan. The Coach asks questions and pushes back when an answer needs more.</p>
+    <p class="small">As you get stronger, the Coach gives you less help, until you can do it all on your own.</p></div>`;
+}
+
+// First visit: teach the steps with an example. Later visits: recall them, never a gate.
+function introCard() {
+  return `<div class="card"><h2>Meet the Six Steps</h2>
+    <p class="small muted">Every CER follows the same six steps. The examples answer a practice question: <i>${esc(EXAMPLE.question)}</i></p>
+    <ol class="intro">${STEPS.map((s) => `<li><b>${esc(s.t)}</b> ${esc(s.line)}<span class="ex">Example: ${esc(s.ex)}</span></li>`).join('')}</ol>
+    <p class="small">The steps stay at the top of the screen while you work. You'll learn them by heart as you go.</p></div>`;
+}
+function recallCard() {
+  return `<div class="card"><h2>Warm-Up: The Six Steps From Memory</h2>
+    <p class="muted small">Optional. Type the steps you remember, then check yourself. Tap Show Me if you're stuck.</p>
+    <div class="warm" id="warm">${[1, 2, 3, 4, 5, 6].map((i) => `<div class="wrow"><label for="w${i}"><span>${i}</span><input type="text" id="w${i}" autocomplete="off"></label><button class="btn quiet small" type="button" data-act="showme" data-i="${i - 1}" aria-label="Show step ${i}">Show Me</button></div>`).join('')}</div>
+    <div class="row" style="margin-top:12px"><button class="btn ghost" type="button" data-act="warmcheck">Check Me</button><span id="warmout" class="small" aria-live="polite"></span></div></div>`;
 }
 
 function customSourceRow(s, i) {
@@ -194,7 +242,6 @@ function renderStation(n) {
   paintChrome(n);
   if (n === 8) return renderCheck();
   const L = lvl(st.move);
-  const levelTag = st.move ? `<span class="small muted"><b>${MOVES[st.move]}</b> · Your level: ${LEVELS[L - 1]}</span>` : '';
   let body = '';
 
   if (st.id === 'unpack') {
@@ -222,8 +269,7 @@ function renderStation(n) {
   if (st.id === 'choose') {
     const need = evidenceNeeded(work.version);
     const rows = work.log.map((r, i) => ({ r, i })).filter(({ r }) => r.says.trim());
-    body = `<p class="small muted">Your claim: <b>${esc(work.claim.first || '(not written yet)')}</b></p>
-      <p>Choose the <b>${need}</b> that prove your claim best, strongest first.</p>
+    body = `<p>Choose the <b>${need}</b> that prove your claim best, strongest first.</p>
       <div class="pick">${rows.map(({ r, i }) => {
         const rank = work.chosen.indexOf(i);
         return `<label><input type="checkbox" data-act="pick" data-i="${i}" ${rank > -1 ? 'checked' : ''}><span>${esc(r.says)}<br><span class="small muted">${esc(r.who)}${r.strength ? ` · strength ${esc(r.strength)}` : ''}</span></span>${rank > -1 ? `<span class="rankno">#${rank + 1}</span>` : ''}</label>`;
@@ -232,32 +278,40 @@ function renderStation(n) {
   }
 
   if (st.id === 'reason') {
-    body = `<p class="small muted">Your claim: <b>${esc(work.claim.first || '(not written yet)')}</b></p>` +
+    const N = work.chosen.length;
+    if (rung >= N) rung = Math.max(0, N - 1);
+    const i = work.chosen[rung];
+    const r = work.log[i];
+    const tabs = N > 1 ? `<div class="rungnav" role="group" aria-label="Evidence">${work.chosen.map((_, k) =>
+      `<button type="button" class="btn small ${k === rung ? '' : 'quiet'}" data-act="rung" data-k="${k}" ${k === rung ? 'aria-current="true"' : ''}>Evidence ${k + 1}</button>`).join('')}</div>` : '';
+    body = (N ? `${tabs}<div class="rung"><h3>Evidence ${rung + 1} of ${N}</h3><div class="ev">${esc(r.says)} <span class="muted small">(${esc(r.who)}${r.where ? ', ' + esc(r.where) : ''})</span></div>
+          ${field('rshows', `reasoning.${i}.shows`, 'reasoning')}${field('proves', `reasoning.${i}.proves`, 'reasoning')}${field('connects', `reasoning.${i}.connects`, 'reasoning')}</div>`
+      : '<p class="muted">Choose your evidence at Station 5 first.</p>') +
       exampleBox('reasoning', `<p><b>Shows:</b> ${esc(EXAMPLE.rshows)}<br><b>Proves:</b> ${esc(EXAMPLE.proves)}<br><b>Connects:</b> ${esc(EXAMPLE.connects)}</p>`) +
-      (work.chosen.length ? work.chosen.map((i, k) => {
-        const r = work.log[i];
-        return `<div class="rung"><h3>Evidence ${k + 1}</h3><div class="ev">${esc(r.says)} <span class="muted small">(${esc(r.who)}${r.where ? ', ' + esc(r.where) : ''})</span></div>
-          ${field('rshows', `reasoning.${i}.shows`, 'reasoning')}${field('proves', `reasoning.${i}.proves`, 'reasoning')}${field('connects', `reasoning.${i}.connects`, 'reasoning')}</div>`;
-      }).join('') : '<p class="muted">Choose your evidence at Station 5 first.</p>') +
       (prompt.wordBank?.length && L <= 2 ? bank('Ideas from class', prompt.wordBank) : '');
   }
 
   if (st.id === 'stress') {
     const req = needsCounter(work.version);
-    body = `<p class="small muted">Your first claim: <b>${esc(work.claim.first || '(not written yet)')}</b></p>` +
-      field('counter', 'stress.counter', 'claim', { note: req ? '' : '(optional challenge)' }) +
+    body = field('counter', 'stress.counter', 'claim', { note: req ? '' : '(optional challenge)' }) +
       field('answer', 'stress.answer', 'claim', { note: req ? '' : '(optional challenge)' }) +
       exampleBox('claim', `<p>${esc(EXAMPLE.counter)}<br>${esc(EXAMPLE.answer)}</p>`) +
       field('final', 'stress.final', 'claim');
   }
 
   main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
-      <div class="row"><h1>${esc(st.title)}</h1>${levelTag}</div>
+      ${questionCard(n)}
+      <div class="row"><h1>${esc(st.title)}</h1></div>
       <div class="card stack">${body}</div>
       <div class="pushslot" id="push_self" aria-live="polite"></div>
-      <div class="row"><a href="#/s/${n - 1}">Back</a><span class="spacer"></span><button class="btn" type="button" data-act="next" data-n="${n}">${n === 7 ? 'Go to Check' : 'Next'}</button></div>
+      <div class="row"><a href="#/s/${n - 1}">Back</a><span class="spacer"></span><button class="btn" type="button" data-act="next" data-n="${n}">${nextLabel(n)}</button></div>
     </div><div class="side">${viewer()}${askYourself(n)}</div></div></div>`;
   focusMain();
+}
+
+function nextLabel(n) {
+  if (n === 6 && rung < work.chosen.length - 1) return 'Next Evidence';
+  return n === 7 ? 'Go to Check' : 'Next';
 }
 
 const chk = (path, text) => `<label><input type="checkbox" data-bind="${path}" ${getPath(path) ? 'checked' : ''}>${esc(text)}</label>`;
@@ -281,10 +335,10 @@ function logRow(i) {
 }
 
 function askYourself(n) {
-  const map = { 2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5 };
-  const s = STEPS[map[n]];
+  const k = STATION_STEP[n];
+  const s = STEPS[k];
   if (!s) return '';
-  return `<div class="card askself"><b>Step ${map[n] + 1}: ${esc(s.t)}</b><ul>${s.qs.map((q) => `<li>${esc(q)}</li>`).join('')}</ul></div>`;
+  return `<div class="card askself"><b>Step ${k + 1}: ${esc(s.t)}</b><ul>${s.qs.map((q) => `<li>${esc(q)}</li>`).join('')}</ul></div>`;
 }
 
 // ---------------------------------------------------------------- source viewer
@@ -328,7 +382,7 @@ function flagsFor(n) {
   }
   if (n === 5) add('choose', RULES.choose(work.chosen, work.log, evidenceNeeded(work.version)), 'evidence');
   if (n === 6) {
-    work.chosen.forEach((i) => {
+    work.chosen.filter((_, k) => k === rung).forEach((i) => {
       const r = work.reasoning[i] || {};
       add(`f_reasoning_${i}_shows`, RULES.rshows(r.shows || ''), 'reasoning');
       add(`f_reasoning_${i}_proves`, RULES.proves(r.proves || '', { says: work.log[i]?.says }), 'reasoning');
@@ -355,7 +409,7 @@ function onNext(n) {
   const flags = L >= 4 ? [] : flagsFor(n);
   if (flags.length) {
     const snap = snapshot(n);
-    if (pending === snap) { proceed(n); return; }      // second Next with nothing changed: keep going
+    if (pending === snap) { advance(n); return; }      // second Next with nothing changed: keep going
     if (L === 3 && !selfShown) {                       // Prompted: ask the student first
       selfShown = true;
       $('#push_self').innerHTML = `<div class="push self"><span class="mark">?</span><div><b>${esc(SELF_QUESTION)}</b>
@@ -366,6 +420,16 @@ function onNext(n) {
     showFlags(flags);
     pending = snap;
     $('#push_self').innerHTML = `<p class="small muted">Fix what the Coach asked about, or press Next again to keep your answers as they are.</p>`;
+    return;
+  }
+  advance(n);
+}
+
+// Reasoning moves through the evidence one piece at a time before leaving the station.
+function advance(n) {
+  if (n === 6 && rung < work.chosen.length - 1) {
+    rung += 1; pending = null; selfShown = false; revealed = {};
+    renderStation(6);
     return;
   }
   proceed(n);
@@ -439,9 +503,10 @@ function renderCheck() {
       <div class="field"><label for="c_fix">What is one thing you will fix before you turn it in?</label><input type="text" id="c_fix" data-bind="check.fix" value="${esc(work.check.fix)}"></div>
       <div class="field"><label for="c_hard">The hardest part was...</label><input type="text" id="c_hard" data-bind="check.hard" value="${esc(work.check.hard)}"></div>
       <div class="field"><label for="c_next">Next time I will...</label><input type="text" id="c_next" data-bind="check.next" value="${esc(work.check.next)}"></div>
-      <div class="row"><button class="btn" type="button" data-act="finish" ${work.check.applied ? 'disabled' : ''}>${work.check.applied ? 'Levels Updated' : 'Finish and Update My Levels'}</button><span id="finishout" class="small" aria-live="polite">${work.check.applied ? esc(work.check.summary || '') : ''}</span></div></div>` : '';
+      <div class="row"><button class="btn" type="button" data-act="finish" ${work.check.applied ? 'disabled' : ''}>${work.check.applied ? 'Finished' : 'Finish'}</button><span id="finishout" class="small" aria-live="polite">${work.check.applied ? esc(work.check.summary || '') : ''}</span></div></div>` : '';
 
   main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
+      ${questionCard(8)}
       <div class="row"><h1>Assemble and Check</h1></div>
       <div class="card stack"><h2>Your Plan, in Order</h2><p class="small muted">Write your CER on lined paper as full sentences. ${goal}</p>
         <dl class="planlist">${planHTML()}</dl>
@@ -462,7 +527,7 @@ function applyLevels() {
     const L = levels[m];
     if (!r.res && self >= 3 && work.stuck[m] < 2) {
       L.streak += 1;
-      if (L.streak >= 2 && L.level < 4) { L.level += 1; L.streak = 0; msgs.push(`${MOVES[m]} moves to ${LEVELS[L.level - 1]}.`); }
+      if (L.streak >= 2 && L.level < 4) { L.level += 1; L.streak = 0; msgs.push(`You've shown you can do ${MOVES[m]} with less help, so the Coach will step back.`); }
     } else if (r.res) {
       L.streak = 0;
       if (L.level > 1 && self >= 3) { /* overrated: hold the level */ }
@@ -473,8 +538,9 @@ function applyLevels() {
   });
   saveLevels(levels);
   work.check.applied = true;
-  work.check.summary = msgs.length ? msgs.join(' ') : 'Your levels stay the same. Keep going.';
+  work.check.summary = msgs.length ? msgs.join(' ') : 'Nice work. Keep practicing the six steps.';
   work.done[8] = true;
+  meta.finished = (meta.finished || 0) + 1; saveMeta(meta);
   save();
 }
 
@@ -538,7 +604,9 @@ document.addEventListener('click', (e) => {
   const act = b.dataset.act;
   if (act === 'next') onNext(+b.dataset.n);
   if (act === 'coachq') { const n = +b.dataset.n; const fl = flagsFor(n); showFlags(fl); pending = snapshot(n); }
-  if (act === 'begin') { work.done[1] = true; save(); go(2); }
+  if (act === 'begin') { work.done[1] = true; save(); if (!meta.seenSteps) { meta.seenSteps = true; saveMeta(meta); } go(2); }
+  if (act === 'showme') { const i = +b.dataset.i; const inp = document.getElementById(`w${i + 1}`); inp.value = STEPS[i].t; inp.parentElement.classList.add('shown'); }
+  if (act === 'rung') { rung = +b.dataset.k; pending = null; selfShown = false; renderStation(6); }
   if (act === 'reset' && confirm('Start over on this question? Your answers for it will be erased.')) { clearWork(prompt.id); prompt = null; route(); }
   if (act === 'warmcheck') warmCheck();
   if (act === 'stuck' || act === 'showq') {

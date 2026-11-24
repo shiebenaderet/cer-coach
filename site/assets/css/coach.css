@@ -65,6 +65,37 @@ p { margin: .4rem 0; }
 .stations [aria-current="step"] .bar { background: #c98a93; }
 .stations .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ---------- six-steps strip ---------- */
+.stepstrip { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 8px 24px; background: #fdfbf6; border-bottom: 1px solid var(--line); font-size: .85rem; }
+.stepstrip .lbl { font-weight: 800; color: var(--muted); margin-right: 4px; }
+.stepstrip .step { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--muted); font-weight: 700; }
+.stepstrip .step b { color: var(--ink); }
+.stepstrip .step.past { color: var(--ink); }
+.stepstrip .step.now { border: 2px solid var(--maroon); background: var(--maroon-tint); color: var(--maroon); }
+.stepstrip .step.now b { color: var(--maroon); }
+.stepstrip.compact .step { padding: 3px 9px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- question card ---------- */
+.qcard { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--maroon); border-radius: var(--radius); padding: 12px 18px; box-shadow: var(--shadow); }
+.qcard summary { cursor: pointer; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.qcard summary::-webkit-details-marker { display: none; }
+.qcard .qline { font-weight: 800; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qcard[open] .qline { display: none; }
+.qcard .qfull { margin: 4px 0 0; font-size: 1.15rem; font-weight: 800; line-height: 1.35; }
+.qcard .myclaim { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line); }
+.qcard:not([open]) summary::after { content: "Tap to see the full question"; font-size: .8rem; color: var(--muted); }
+
+/* ---------- six-steps intro + recall ---------- */
+.intro { padding-left: 1.3em; margin: 10px 0; display: flex; flex-direction: column; gap: 10px; }
+.intro .ex { display: block; font-size: .9rem; color: var(--muted); margin-top: 2px; }
+.warm .wrow { display: flex; gap: 8px; align-items: center; }
+.warm .wrow label { flex: 1; }
+.warm .shown input { border-color: var(--gold); background: var(--gold-tint); }
+
+/* ---------- reasoning rungs ---------- */
+.rungnav { display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* ---------- layout ---------- */
 main, main:focus, main:focus-visible { outline: none; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 22px 24px 48px; }
@@ -199,6 +230,8 @@ textarea.short { min-height: 48px; }
   .topq { order: 3; flex-basis: 100%; white-space: normal; }
   .stations { padding: 8px 16px; }
   .stations .lbl { display: none; }
+  .stepstrip { padding: 6px 16px; }
+  .stepstrip .lbl { display: none; }
   .wrap { padding: 16px 16px 40px; }
   .score { grid-template-columns: 100px repeat(4, minmax(0, 1fr)); }
   .planlist { grid-template-columns: 1fr; }
