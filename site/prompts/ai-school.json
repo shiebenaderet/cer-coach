@@ -1,0 +1,48 @@
+{
+  "id": "ai-school",
+  "title": "AI and Students: Help or Harm?",
+  "blurb": "Technology: do AI chatbots help students learn more than they hurt?",
+  "unit": "Practice Question",
+  "question": "Do the benefits of AI chatbots for students outweigh the costs?",
+  "version": "Full",
+  "wordBank": [
+    "chatbot: an AI program you can type questions to, like ChatGPT",
+    "survey: asking many people the same questions to learn what a group thinks",
+    "preprint: a study shared before other scientists have reviewed it",
+    "peer review: when other experts check a study before it is published",
+    "tutor: someone who helps one student learn"
+  ],
+  "sources": [
+    {
+      "type": "video",
+      "title": "How AI Could Save (Not Destroy) Education",
+      "note": "Sal Khan, founder of Khan Academy, argues AI can be a personal tutor for every student. Pause on a quote you want and write down the time.",
+      "citation": "Sal Khan, \"How AI Could Save (Not Destroy) Education,\" TED, 2023.",
+      "url": "https://www.youtube.com/watch?v=hJP5GqnTrNo"
+    },
+    {
+      "type": "excerpt",
+      "title": "What Teens Say About AI",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "In a fall 2025 survey of 1,458 U.S. teens ages 13 to 17, 54% said they have used AI chatbots to get help with schoolwork, but only about 1 in 10 said they do most or all of their schoolwork with them. 59% said students at their school use AI to cheat at least somewhat often. Looking 20 years ahead, 36% expected AI to have a positive effect on them personally and 15% a negative effect. Among teens who expected a negative effect on society, 34% named overreliance or loss of critical thinking or creativity.",
+      "citation": "Colleen McClain, Monica Anderson, Olivia Sidoti and William Bishop, \"How Teens Use and View AI,\" Pew Research Center, February 24, 2026.",
+      "url": "https://www.pewresearch.org/internet/2026/02/24/how-teens-use-and-view-ai/"
+    },
+    {
+      "type": "excerpt",
+      "title": "An MIT Study on Brains and ChatGPT",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "Researchers at the MIT Media Lab had 54 people write essays using ChatGPT, a search engine, or no tools while measuring brain activity. The no-tools group showed the strongest brain connections and the ChatGPT group the weakest. ChatGPT users felt the least ownership of their essays and had trouble quoting what they had just written. The study was shared as a preprint in June 2025.",
+      "citation": "Nataliya Kosmyna and others, \"Your Brain on ChatGPT: Accumulation of Cognitive Debt when Using an AI Assistant for Essay Writing Task,\" MIT Media Lab, June 10, 2025.",
+      "url": "https://www.media.mit.edu/publications/your-brain-on-chatgpt/"
+    },
+    {
+      "type": "excerpt",
+      "title": "Scientists Question the MIT Study",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "Other scientists urged caution about the MIT study. It was small, only 18 people finished the last part, and it had not been peer reviewed. Brain activity that looks lower is not clearly good or bad, and real students might use AI differently than people in the experiment. The lead researcher said the paper does not answer whether long-term chatbot use changes how people think: \"We don't have any of these answers in this paper.\"",
+      "citation": "Nicola Jones, \"Does Using ChatGPT Change Your Brain Activity? Study Sparks Debate,\" Scientific American (from Nature), June 25, 2025.",
+      "url": "https://www.scientificamerican.com/article/does-using-chatgpt-really-change-your-brain-activity/"
+    }
+  ]
+}

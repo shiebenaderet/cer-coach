@@ -1,0 +1,41 @@
+{
+  "id": "free-meals",
+  "title": "Free School Meals for Everyone?",
+  "blurb": "Food access: should every Washington student get free breakfast and lunch?",
+  "unit": "Practice Question",
+  "question": "Should every public school in Washington give free breakfast and lunch to every student?",
+  "version": "Full",
+  "wordBank": [
+    "universal: for everyone, with no application",
+    "food insecurity: not always having enough food",
+    "taxpayers: the people whose taxes pay for government programs",
+    "participation: how many students actually eat the school meals",
+    "stigma: shame or judgment attached to something"
+  ],
+  "sources": [
+    {
+      "type": "excerpt",
+      "title": "Washington Expands Free Meals",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "After a 2023 state law, more Washington schools, especially elementary schools, began serving meals at no cost to all students. By fall 2024, about 775,000 of the state's 1.1 million public school students (70%) had access to free meals. At schools that newly went universal, lunches served rose 32% and breakfasts rose 50% in 2023-24. State Superintendent Chris Reykdal said, \"We know that students can't learn when they're hungry,\" and that families could save up to $1,200 a year.",
+      "citation": "Office of Superintendent of Public Instruction, \"70% of Washington Students Now Have Access to Free Meals at Their Public School,\" October 15, 2024.",
+      "url": "https://ospi.k12.wa.us/about-ospi/news-center/news-releases/70-washington-students-now-have-access-free-meals-their-public-school"
+    },
+    {
+      "type": "excerpt",
+      "title": "Testimony For and Against the 2023 Law",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "When lawmakers considered the 2023 bill, supporters, including school districts, pediatricians and nutrition groups, said hungry children have trouble learning, free meals remove shame and lunch debt, and they help middle-income families with rising costs. Opponents said parents, not schools, are responsible for feeding children, that the cost falls on taxpayers, and that existing programs already feed children who need it. Testimony noted that the cost estimate was high and the return was hard to measure.",
+      "citation": "Washington State House of Representatives, House Bill Report on HB 1238 (Appropriations), 2023.",
+      "url": "https://lawfilesext.leg.wa.gov/biennium/2023-24/Htm/Bill%20Reports/House/1238%20HBR%20APP%2023.htm"
+    },
+    {
+      "type": "excerpt",
+      "title": "What Research Says So Far",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "Researchers reviewed six studies covering more than 11,000 U.S. schools that offer free meals to all students through a federal program. More students ate school lunch (moderate certainty). Attendance stayed the same or improved, and one study found lower obesity rates, but the researchers rated that evidence low or very low certainty. In other words, the strongest finding is that more kids eat, and the effects on other outcomes are less clear.",
+      "citation": "\"Universal Free School Meals and School and Student Outcomes: A Systematic Review,\" JAMA Network Open, August 2024.",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39120904/"
+    }
+  ]
+}

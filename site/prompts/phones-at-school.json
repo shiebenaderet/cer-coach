@@ -1,0 +1,41 @@
+{
+  "id": "phones-at-school",
+  "title": "Phones Away All Day?",
+  "blurb": "Washington schools: should phones be locked away for the whole school day?",
+  "unit": "Practice Question",
+  "question": "Should Washington schools require students to put their phones away for the entire school day?",
+  "version": "Full",
+  "wordBank": [
+    "away for the day: phones are put away from the first bell to the last",
+    "policy: a rule a school or district decides on",
+    "district: the group of schools in an area, run by a school board",
+    "local control: letting each district make its own decisions instead of the state",
+    "engagement: how focused and involved students are in class"
+  ],
+  "sources": [
+    {
+      "type": "excerpt",
+      "title": "What Washington Districts Report",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "In a spring 2026 survey, 31% of Washington districts said they had no cell phone policy, and 44% let each school make its own. Among districts with policies, 57% reported fewer disruptions during class, 50% reported higher student engagement, and 40% reported more students talking with each other. These numbers were reported by the districts themselves, not measured in a study. State Superintendent Chris Reykdal said \"Our students don't need another study\" and plans to propose a statewide away-for-the-day law in 2027.",
+      "citation": "Office of Superintendent of Public Instruction, \"Nearly One-Third of Washington School Districts Have Yet to Adopt a Cell Phone Policy, New Data Show,\" July 15, 2026.",
+      "url": "https://ospi.k12.wa.us/about-ospi/news-center/news-releases/nearly-one-third-washington-school-districts-have-yet-adopt-cell-phone-policy-new-data-show"
+    },
+    {
+      "type": "excerpt",
+      "title": "Lawmakers, a Principal and a Student Disagree",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "In 2026 the Legislature passed a bill from Sen. Marko Liias of Edmonds that asks the state to study phone limits instead of banning phones. Gov. Bob Ferguson wants a ban, saying Washington should not be the last state to act. A Seattle middle school principal said his away-for-the-day policy cut down on fights and called it \"a no brainer.\" But Rep. Sharon Tomiko Santos said a statewide rule is too broad and districts should decide, and a Lake Washington High School senior supported limits in class but not all day, because \"plans could change\" and families need to reach students.",
+      "citation": "Nate Sanford, \"As Washington lawmakers punt on school cellphone ban, some want more action,\" KNKX / OPB, April 4, 2026.",
+      "url": "https://www.opb.org/article/2026/04/04/washington-cellphone-ban-study"
+    },
+    {
+      "type": "link",
+      "title": "Video: One Middle School Locks Up Phones",
+      "note": "Watch on PBS. A Connecticut middle school locks phones in pouches all day. Listen for what the assistant principal says about students' first reaction and about parents. Write down the time of any quote you use.",
+      "excerpt": "",
+      "citation": "Amna Nawaz, \"How a middle school is successfully keeping students off their phones during class,\" PBS NewsHour, May 9, 2024.",
+      "url": "https://www.pbs.org/newshour/show/how-a-middle-school-is-successfully-keeping-students-off-their-phones-during-class"
+    }
+  ]
+}

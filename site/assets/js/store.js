@@ -9,23 +9,23 @@ const safe = {
 export function blankWork(promptId, version) {
   return {
     promptId, version,
-    unpack: { task: '', words: '', own: '' },
-    log: [blankRow(), blankRow(), blankRow()],
+    unpack: { task: '', own: '' },
+    log: [blankRow()],
     claim: { first: '', tests: { answers: false, disagree: false, provable: false } },
     chosen: [],
     reasoning: {},
     stress: { counter: '', answer: '', final: '' },
-    check: { self: {}, revealed: false, hard: '', next: '', fix: '', applied: false },
+    check: { stage: 'other', self: {}, revealed: false, next: '', fix: '', applied: false },
     stuck: { claim: 0, evidence: 0, reasoning: 0 },
     done: {},
     custom: null,
   };
 }
-export const blankRow = () => ({ says: '', who: '', where: '', shows: '', strength: '' });
+export const blankRow = () => ({ src: '', says: '', who: '', where: '', shows: '', strength: '' });
 
-export const loadWork = (id) => safe.get(`cer:work:${id}`);
-export const saveWork = (w) => safe.set(`cer:work:${w.promptId}`, w);
-export const clearWork = (id) => safe.del(`cer:work:${id}`);
+export const loadWork = (id) => safe.get(`cer:work2:${id}`);
+export const saveWork = (w) => safe.set(`cer:work2:${w.promptId}`, w);
+export const clearWork = (id) => safe.del(`cer:work2:${id}`);
 
 const DEFAULT_LEVELS = { claim: { level: 2, streak: 0 }, evidence: { level: 2, streak: 0 }, reasoning: { level: 1, streak: 0 } };
 export const loadLevels = () => ({ ...DEFAULT_LEVELS, ...(safe.get('cer:levels') || {}) });

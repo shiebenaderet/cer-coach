@@ -1,3 +1,22 @@
 [
-  { "id": "school-start", "title": "Practice: Should Our School Start Later?", "unit": "Practice Question" }
+  {
+    "id": "nfl-combine",
+    "title": "Is the NFL Combine Like a Slave Auction?",
+    "blurb": "Sports and history: weigh a comparison that football leaders and writers still argue about."
+  },
+  {
+    "id": "ai-school",
+    "title": "AI and Students: Help or Harm?",
+    "blurb": "Technology: do AI chatbots help students learn more than they hurt?"
+  },
+  {
+    "id": "free-meals",
+    "title": "Free School Meals for Everyone?",
+    "blurb": "Food access: should every Washington student get free breakfast and lunch?"
+  },
+  {
+    "id": "phones-at-school",
+    "title": "Phones Away All Day?",
+    "blurb": "Washington schools: should phones be locked away for the whole school day?"
+  }
 ]

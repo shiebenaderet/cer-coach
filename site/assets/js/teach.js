@@ -11,8 +11,8 @@ let lastSaved = null;      // JSON of the draft as last saved
 let pendingCount = 0;
 
 const VERSIONS = ['Quick', 'Clear', 'Full', 'Deep'];
-const TYPES = [['excerpt', 'Excerpt (short passage + citation)'], ['pdf', 'PDF'], ['image', 'Image'], ['doc', 'Document file'], ['link', 'Link only']];
-const blankSource = () => ({ type: 'excerpt', title: '', note: '', excerpt: '', citation: '', url: '', file: '', alt: '' });
+const TYPES = [['excerpt', 'Excerpt (short passage + citation)'], ['video', 'Video (YouTube)'], ['pdf', 'PDF'], ['image', 'Image'], ['doc', 'Document file'], ['link', 'Link only']];
+const blankSource = () => ({ type: 'excerpt', title: '', note: '', excerpt: '', citation: '', url: '', file: '', alt: '', start: '' });
 const blankDraft = () => ({ id: '', title: '', unit: '', question: '', version: 'Full', wordBank: [], sources: [blankSource()] });
 
 // ---------------------------------------------------------------- api
@@ -33,7 +33,7 @@ function toast(msg, bad = false) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 3500);
 }
 function focusMain() { main().focus({ preventScroll: true }); window.scrollTo(0, 0); }
-const studentLink = (id) => `${location.origin}/?q=${encodeURIComponent(id)}#/s/1`;
+const studentLink = (id) => `${location.origin}/?q=${encodeURIComponent(id)}#/s/0`;
 
 // ---------------------------------------------------------------- chrome
 function paintChrome(view) {
@@ -243,10 +243,11 @@ function sourceEditor(s, i) {
     ${field('title', 'Title')}
     ${field('note', 'Note for students', { hint: '(optional, one line)' })}
     ${t === 'excerpt' || t === 'link' || t === 'doc' ? field('excerpt', t === 'doc' ? 'Passage to focus on' : 'Excerpt', { area: true, hint: t === 'excerpt' ? '(only the part students need)' : '(optional)' }) : ''}
+    ${t === 'video' ? field('start', 'Start at', { hint: '(optional, like 1:30)' }) : ''}
     ${fileBox}
     ${t === 'image' ? field('alt', 'Describe the image', { hint: '(for screen readers)' }) : ''}
     ${field('citation', 'Citation', { hint: '(who made it, title, where, when)' })}
-    ${field('url', 'Link to the full original', { type: 'url', hint: t === 'excerpt' || t === 'link' ? '' : '(optional)' })}
+    ${field('url', t === 'video' ? 'YouTube link' : 'Link to the full original', { type: 'url', hint: ['excerpt', 'link', 'video'].includes(t) ? '' : '(optional)' })}
   </div>`;
 }
 
@@ -273,6 +274,7 @@ function problems() {
     if (s.type === 'excerpt' && !s.excerpt.trim()) p.push(`${n} needs the excerpt text.`);
     if (['pdf', 'image', 'doc'].includes(s.type) && !s.file) p.push(`${n} needs an uploaded file.`);
     if (s.type === 'link' && !s.url.trim()) p.push(`${n} needs a link.`);
+    if (s.type === 'video' && !/(youtube\.com|youtu\.be)\//.test(s.url)) p.push(`${n} needs a YouTube link.`);
     if (s.type !== 'link' && !s.citation.trim()) p.push(`${n} needs a citation.`);
     if (s.type === 'image' && !s.alt.trim()) p.push(`${n} needs an image description.`);
   });

@@ -1,0 +1,58 @@
+{
+  "id": "nfl-combine",
+  "title": "Is the NFL Combine Like a Slave Auction?",
+  "blurb": "Sports and history: weigh a comparison that football leaders and writers still argue about.",
+  "unit": "Practice Question",
+  "question": "Is it fair to compare the NFL Scouting Combine to a slave auction?",
+  "version": "Full",
+  "wordBank": [
+    "Scouting Combine: a yearly event where college players are measured, tested and interviewed by NFL teams before the draft",
+    "auction: a public sale where buyers bid against each other",
+    "enslaved: held as property and forced to work without pay or freedom",
+    "consent: agreeing to something by choice",
+    "analogy: a comparison that says two things are alike in an important way",
+    "dignity: being treated with respect as a person"
+  ],
+  "sources": [
+    {
+      "type": "excerpt",
+      "title": "An 1859 Slave Auction in Savannah, Georgia",
+      "note": "A primary source: a newspaper reporter's account, summarized. This source describes real people who were enslaved and sold.",
+      "excerpt": "In March 1859, 429 enslaved men, women and children were sold over two days at a racetrack near Savannah after a plantation estate was broken up. For days before the sale, buyers from across the South examined them: they checked their teeth, pinched their arms and legs, made them walk to look for limps, and questioned them about their skills. Families were supposed to be sold together, but that was not guaranteed. The reporter described \"crushed hopes and broken hearts\" on the faces of the people being sold.",
+      "citation": "New York Daily Tribune, March 9, 1859, as presented by America's Black Holocaust Museum.",
+      "url": "https://www.abhmuseum.org/a-1859-slave-auction-in-savannah-as-reported-by-the-new-york-tribune/"
+    },
+    {
+      "type": "excerpt",
+      "title": "An NFL Leader Makes the Comparison",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "In December 2022, Troy Vincent, a former Pro Bowl player and the NFL's executive vice president of football operations, told team owners at a league meeting that the combine had features of a \"slave auction,\" according to several people in the room. In public he said \"there has to be dignity\" in the combine. Some owners pushed back. Falcons owner Arthur Blank objected to the idea that he supported an event that could be called racist. Cowboys owner Jerry Jones spoke about the opportunity of playing in the NFL.",
+      "citation": "Jonathan Jones, \"NFL owners get defensive after scouting combine gets compared to 'slave auction',\" CBS Sports, December 15, 2022.",
+      "url": "https://www.cbssports.com/nfl/news/nfl-owners-get-defensive-after-scouting-combine-gets-compared-to-slave-auction-by-league-exec-troy-vincent/"
+    },
+    {
+      "type": "excerpt",
+      "title": "Colin Kaepernick's TV Series",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "In 2021, former 49ers quarterback Colin Kaepernick co-created the Netflix series Colin in Black and White. In one scene, Black players doing combine drills in front of scouts and owners are shown walking into a cotton field in chains and being auctioned. Kaepernick's narration says the process sets up \"a power dynamic\" in which no personal boundary is respected.",
+      "citation": "Adam Wells, \"Colin Kaepernick Compares NFL Combine to Slavery in 'Colin in Black and White',\" Bleacher Report, October 30, 2021.",
+      "url": "https://bleacherreport.com/articles/10016725-colin-kaepernick-compares-nfl-combine-to-slavery-in-colin-in-black-and-white"
+    },
+    {
+      "type": "excerpt",
+      "title": "A Writer Says the Comparison Is Wrong",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "Writer Touré agrees the NFL has real problems, and that mostly white officials inspecting Black players' bodies can bring the auction block to mind. But he argues the comparison falls apart: players choose to attend the combine and compete for the chance, while enslaved people were kidnapped and held by violence and law, and many NFL players earn high salaries. He says the comparison makes slavery seem smaller, and that real modern exploitation is in places like prisons and low-wage work. He wrote that the combine is \"180 degrees away from slavery.\"",
+      "citation": "Touré, opinion column on comparing the NFL to slavery, theGrio, November 4, 2021.",
+      "url": "https://thegrio.com/2021/11/04/nfl-slavery-intellectually-bankrupt"
+    },
+    {
+      "type": "excerpt",
+      "title": "The Players' Union Wants Changes",
+      "note": "A summary of the source. Open the original for exact quotes.",
+      "excerpt": "In 2023, DeMaurice Smith, then the head of the NFL Players Association, called for ending the combine and replacing it with regional workouts. He objected to players giving up their medical privacy and being examined by doctors from all 32 teams, asking why a player should spend hours in an MRI machine. He said the combine lets teams take \"intrusive employment actions that don't exist anywhere else.\" He did not compare it to slavery.",
+      "citation": "Garrett Podell, report on DeMaurice Smith calling to end the NFL Scouting Combine, CBS Sports, February 9, 2023.",
+      "url": "https://cbssports.com/nfl/news/nflpas-demaurice-smith-pushes-to-end-nfl-scouting-combine-offers-regional-pro-days-as-alternative"
+    }
+  ]
+}

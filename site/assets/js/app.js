@@ -1,21 +1,24 @@
-import { STATIONS, F, VERSIONS, STEPS, STATION_STEP, EXAMPLE, TASK_WORDS, HELP_WORDS, MOVES, SELF_QUESTION, needsCounter, evidenceNeeded } from './content.js';
+// CER Coach student app: a start screen, then the six steps (Read, Find, Answer, Prove, Explain, Check).
+import { STEPS, F, VERSIONS, EXAMPLE, TASK_WORDS, MOVES, SELF_QUESTION, needsCounter, evidenceNeeded, youtubeId, toSeconds } from './content.js';
 import { RULES } from './rules.js';
 import { blankWork, blankRow, loadWork, saveWork, clearWork, loadLevels, saveLevels, loadLast, saveLast, loadMeta, saveMeta } from './store.js';
 
 // ---------------------------------------------------------------- state
-let prompt = null;      // the loaded prompt file
+let prompt = null;      // the loaded question
 let work = null;        // this student's work on it
 let levels = loadLevels();
-let sourceTab = 0;
-let pending = null;     // snapshot of flagged answers, so a second Next keeps them
-let selfShown = false;  // Prompted level: self-question shown before the Coach's
-let revealed = {};      // starters / questions opened this visit
 let meta = loadMeta();  // seen the six-steps intro, CERs finished
-let rung = 0;           // Reasoning station: which piece of evidence is showing
+let sourceTab = 0;
+let pending = null;     // snapshot of answers already pushed back on; a second Next keeps them
+let selfShown = false;  // Prompted level: the student is asked to self-question first
+let stuck = false;      // this step's Stuck? help is open
+let rung = 0;           // Explain: which piece of evidence is showing
+let openRow = 0;        // Find: which evidence row is open
 
 const $ = (s, el = document) => el.querySelector(s);
 const main = () => $('#main');
-const esc = (s = '') => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = (s = '') => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const wide = () => window.matchMedia('(min-width: 761px)').matches;
 
 function getPath(path) { return path.split('.').reduce((o, k) => (o == null ? o : o[k]), work); }
 function setPath(path, v) {
@@ -27,19 +30,21 @@ const save = () => work && saveWork(work);
 const lvl = (move) => (move ? levels[move].level : 2);
 const ctxBase = () => ({ question: prompt?.question || '' });
 
-// ---------------------------------------------------------------- prompts
+// ---------------------------------------------------------------- loading
 async function getJSON(url) { const r = await fetch(url, { cache: 'no-cache' }); if (!r.ok) throw new Error(url); return r.json(); }
 
 async function loadPrompt(id) {
   if (id === 'open') {
     prompt = { id: 'open', title: 'Your Own Question', question: '', version: 'Full', sources: [], wordBank: [] };
   } else {
-    // Built-in practice prompts are static files; teacher-built CERs come from the API.
+    // Practice questions are static files; teacher-built CERs come from the API.
     prompt = await getJSON(`/prompts/${encodeURIComponent(id)}.json`)
       .catch(() => getJSON(`/api/prompts/${encodeURIComponent(id)}`));
     if (!Array.isArray(prompt.sources)) prompt.sources = [];
+    if (!Array.isArray(prompt.wordBank)) prompt.wordBank = [];
   }
   work = loadWork(prompt.id) || blankWork(prompt.id, prompt.version || 'Full');
+  if (!work.log.length) work.log.push(blankRow());
   if (prompt.id === 'open') {
     work.custom = work.custom || { question: '', sources: [] };
     prompt.question = work.custom.question;
@@ -49,134 +54,100 @@ async function loadPrompt(id) {
   sourceTab = 0;
 }
 
-function promptIdFromURL() {
-  const p = new URLSearchParams(location.search);
-  return p.get('q');
-}
-
 // ---------------------------------------------------------------- router
+// #/          pick a question     #/s/0   start screen for the question
+// #/s/1..6    the six steps       #/steps the Steps Card
 async function route() {
-  const hash = location.hash.replace(/^#\/?/, '');
-  const [page, arg] = hash.split('/');
-  pending = null; selfShown = false; revealed = {};
+  const [page, arg] = location.hash.replace(/^#\/?/, '').split('/');
+  pending = null; selfShown = false; stuck = false;
+  const wanted = new URLSearchParams(location.search).get('q');
   try {
-    if (!prompt) {
-      const id = promptIdFromURL() || loadLast();
+    if (!prompt || (wanted && wanted !== prompt.id)) {
+      const id = wanted || loadLast();
+      prompt = null;
       if (id) await loadPrompt(id).catch(() => { prompt = null; });
     }
   } catch { prompt = null; }
 
-  if (page === 'steps') return renderSteps();
-  if (page === 's' && prompt) {
-    let n = Math.min(8, Math.max(1, parseInt(arg, 10) || 1));
-    // Stations open in order: a station is open once the one before it is done.
-    if (n > 1 && !work.done[n] && !work.done[n - 1]) {
-      n = firstOpen();
-      history.replaceState(null, '', `#/s/${n}`);
-    }
-    if (n !== 6) rung = 0;
-    return n === 1 ? renderStart() : renderStation(n);
-  }
-  return renderStart();
+  if (page === 'steps') return renderStepsCard();
+  if (!prompt) return renderHome();
+  if (page !== 's') return renderStart();
+  let n = Math.min(6, Math.max(0, parseInt(arg, 10) || 0));
+  if (!isOpen(n)) { n = firstOpen(); history.replaceState(null, '', `${location.search}#/s/${n}`); }
+  if (n !== 5) rung = 0;
+  if (n === 0) return renderStart();
+  return renderStep(n);
 }
 
-function go(n) { location.hash = `#/s/${n}`; }
-function firstOpen() { for (let k = 1; k <= 8; k++) if (!work.done[k]) return k; return 8; }
-const isOpen = (n) => n === 1 || work.done[n] || work.done[n - 1];
+const go = (n) => { location.hash = `#/s/${n}`; };
+// A step is open once the one before it is done. Step 0 is the start screen.
+const isOpen = (n) => n === 0 || work.done[n] || work.done[n - 1];
+function firstOpen() { for (let k = 0; k <= 6; k++) if (!work.done[k]) return k; return 6; }
 
 // ---------------------------------------------------------------- chrome
 function paintChrome(current) {
-  // Stations show the question in their own card, so the top bar only carries it on the start page.
-  $('#topq').innerHTML = prompt && prompt.question && (!current || current === 1) ? `<b>Question:</b> ${esc(prompt.question)}` : '';
+  $('#topq').innerHTML = prompt?.question && !current ? `<b>Question:</b> ${esc(prompt.question)}` : '';
   const nav = $('#stations');
-  if (!prompt || !current) { nav.hidden = true; $('#stepstrip').hidden = true; return; }
+  if (!prompt || !current) { nav.hidden = true; return; }
   nav.hidden = false;
-  nav.innerHTML = STATIONS.map((s) => {
+  nav.innerHTML = STEPS.map((s) => {
     const done = work.done[s.n];
-    const reach = isOpen(s.n);
-    const cls = done ? 'done' : '';
-    const inner = `<span class="bar"></span><span class="lbl">${s.n} ${esc(s.name)}${done ? ' ✓' : ''}</span>`;
-    if (s.n === current) return `<a href="#/s/${s.n}" class="${cls}" aria-current="step" aria-label="Station ${s.n}, ${esc(s.name)}, current">${inner}</a>`;
-    return reach ? `<a href="#/s/${s.n}" class="${cls}" aria-label="Station ${s.n}, ${esc(s.name)}${done ? ', done' : ''}">${inner}</a>`
-      : `<span aria-label="Station ${s.n}, ${esc(s.name)}, locked">${inner}</span>`;
+    const inner = `<span class="bar"></span><span class="lbl"><b>${s.n}</b> ${esc(s.short)}${done ? ' ✓' : ''}</span>`;
+    const label = `Step ${s.n}, ${esc(s.short)}${done ? ', done' : ''}`;
+    if (s.n === current) return `<a href="#/s/${s.n}" class="${done ? 'done' : ''}" aria-current="step" aria-label="${label}, current">${inner}</a>`;
+    return isOpen(s.n) ? `<a href="#/s/${s.n}" class="${done ? 'done' : ''}" aria-label="${label}">${inner}</a>`
+      : `<span aria-label="${label}, locked">${inner}</span>`;
   }).join('');
-  paintSteps(current);
 }
 
-// The six steps, always in view while working. Names fade to numbers as the student needs less help.
-function paintSteps(current) {
-  const strip = $('#stepstrip');
-  const k = STATION_STEP[current];
-  if (k === undefined || !work) { strip.hidden = true; return; }
-  const avg = (levels.claim.level + levels.evidence.level + levels.reasoning.level) / 3;
-  const compact = avg >= 3;
-  strip.hidden = false;
-  strip.classList.toggle('compact', compact);
-  strip.innerHTML = `<span class="lbl">The Six Steps</span>` + STEPS.map((s, i) =>
-    `<span class="step ${i === k ? 'now' : ''} ${i < k ? 'past' : ''}" ${i === k ? 'aria-current="step"' : ''} title="${esc(s.t)}">` +
-    `<b>${i + 1}</b>${compact ? `<span class="sr">${esc(s.t)}</span>` : ` ${esc(s.short)}`}</span>`).join('');
-}
+function focusMain() { main().focus({ preventScroll: true }); window.scrollTo(0, 0); }
 
-// The question, and the student's claim once they have one, at the top of every station.
+// The question, and the student's claim once they have one, at the top of every step.
 function questionCard(n) {
-  const claim = n >= 8 ? (work.stress.final || work.claim.first) : work.claim.first;
-  const showClaim = n >= 5 && claim.trim();
-  const wide = window.matchMedia('(min-width: 761px)').matches;
-  return `<details class="qcard" ${wide ? 'open' : ''}><summary><span class="kicker">THE QUESTION</span>
+  const claim = n >= 6 ? (work.stress.final || work.claim.first) : work.claim.first;
+  const showClaim = n >= 4 && claim.trim();
+  return `<details class="qcard" ${wide() ? 'open' : ''}><summary><span class="kicker">THE QUESTION</span>
       <span class="qline">${esc(prompt.question)}</span></summary>
     <p class="qfull">${esc(prompt.question)}</p>
-    ${showClaim ? `<p class="myclaim"><b>${n >= 8 && work.stress.final ? 'My final claim:' : 'My claim:'}</b> ${esc(claim)}</p>` : ''}</details>`;
+    ${showClaim ? `<p class="myclaim"><b>${n >= 6 && work.stress.final ? 'My final claim:' : 'My claim:'}</b> ${esc(claim)}</p>` : ''}</details>`;
 }
 
-function focusMain() { const m = main(); m.focus({ preventScroll: true }); window.scrollTo(0, 0); }
-
-// ---------------------------------------------------------------- start (station 1)
-async function renderStart() {
-  paintChrome(prompt ? 1 : 0);
+// ---------------------------------------------------------------- home + start
+async function renderHome() {
+  paintChrome(0);
   let list = [];
-  try { list = await getJSON('prompts/index.json'); } catch { list = []; }
-
-  const picker = `<div class="card"><h2>Pick a Question</h2>
-    <p class="muted small">Your teacher may have sent you a link that opens the right one.</p>
-    <div class="prompts">${list.map((p) => `<a href="?q=${encodeURIComponent(p.id)}#/s/1"><b>${esc(p.title)}</b><br><span class="muted small">${esc(p.unit || '')}</span></a>`).join('')}
-    <a href="?q=open#/s/1"><b>Use My Own Question</b><br><span class="muted small">Type any question and add your own sources.</span></a></div></div>`;
-
-  if (!prompt) {
-    main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
-      <div class="card"><h1>CER Coach</h1><p>Build a Claim, Evidence and Reasoning answer one step at a time. The Coach asks questions and pushes back when an answer needs more. As you get stronger, it gives you less help.</p></div>
-      ${picker}</div><div class="side">${howItWorks()}</div></div></div>`;
-    return focusMain();
-  }
-
-  const isOpen = prompt.id === 'open';
-  const openForm = isOpen ? `<div class="card stack"><h2>Your Question and Sources</h2>
-      <div class="field"><label for="oq">The question you are answering</label><textarea id="oq" class="short" data-open="question">${esc(work.custom.question)}</textarea></div>
-      <div class="stack" id="osrc">${work.custom.sources.map((s, i) => customSourceRow(s, i)).join('')}</div>
-      <div class="row"><button class="btn quiet small" type="button" data-act="addsrc">Add a Source</button></div></div>` : '';
-
-  const versionHTML = `<fieldset class="card"><legend class="kicker">VERSION</legend>
-      <p class="small muted">Use the version your teacher gave you. Full and Deep require a counterpoint.</p>
-      <div class="choice">${VERSIONS.map((v) => `<label><input type="radio" name="ver" value="${v}" ${work.version === v ? 'checked' : ''}>${v}</label>`).join('')}</div></fieldset>`;
-
-  const steps = meta.seenSteps ? recallCard() : introCard();
-  main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
-    <div class="card"><div class="kicker">${esc(prompt.unit || 'QUESTION')}</div><h1 style="margin-top:6px">${esc(prompt.question || 'Type your question below.')}</h1>
-      <p class="muted small">${prompt.sources.length} source${prompt.sources.length === 1 ? '' : 's'} · Plan here or on paper · Your finished CER is written on paper</p></div>
-    ${openForm}${versionHTML}${steps}
-    <div class="row"><button class="btn" type="button" data-act="begin">${meta.seenSteps ? 'Start at Station 2' : 'Got It. Start at Station 2'}</button>
-      <a href="./#/">Pick a different question</a><span class="spacer"></span>
-      <button class="btn quiet small" type="button" data-act="reset">Start Over</button></div>
-  </div><div class="side">
-    ${howItWorks()}
-    ${sourceList()}
-  </div></div></div>`;
+  try { list = await getJSON('/prompts/index.json'); } catch { list = []; }
+  main().innerHTML = `<div class="wrap narrowish stack">
+    <div class="card"><h1>CER Coach</h1>
+      <p>Build a strong answer to any question, one step at a time: a <b>Claim</b>, the <b>Evidence</b> that proves it, and your <b>Reasoning</b>.</p>
+      <p class="small muted">Your teacher will usually give you a link. Or pick a practice question.</p></div>
+    <div class="card"><h2>Practice Questions</h2><div class="prompts">
+      ${list.map((p) => `<a href="?q=${encodeURIComponent(p.id)}#/s/0"><b>${esc(p.title)}</b><br><span class="muted small">${esc(p.blurb || p.unit || '')}</span></a>`).join('')}
+      <a href="?q=open#/s/0"><b>Use My Own Question</b><br><span class="muted small">Type any question and add your own sources.</span></a></div></div>
+  </div>`;
   focusMain();
 }
 
-function howItWorks() {
-  return `<div class="card"><h2>How It Works</h2>
-    <p class="small">Eight stations take you from the question to a finished plan. The Coach asks questions and pushes back when an answer needs more.</p>
-    <p class="small">As you get stronger, the Coach gives you less help, until you can do it all on your own.</p></div>`;
+function renderStart() {
+  paintChrome(0);
+  const isOpenMode = prompt.id === 'open';
+  const openForm = isOpenMode ? `<div class="card stack"><h2>Your Question and Sources</h2>
+      <div class="field"><label for="oq">The question you are answering</label><textarea id="oq" class="short" data-open="question">${esc(work.custom.question)}</textarea></div>
+      <div class="stack">${work.custom.sources.map((s, i) => customSourceRow(s, i)).join('')}</div>
+      <div class="row"><button class="btn quiet small" type="button" data-act="addsrc">Add a Source</button></div></div>` : '';
+  const version = `<fieldset class="card"><legend class="kicker">VERSION</legend>
+      <p class="small muted">Use the version your teacher gave you.</p>
+      <div class="choice">${VERSIONS.map((v) => `<label><input type="radio" name="ver" value="${v}" ${work.version === v ? 'checked' : ''}>${v}</label>`).join('')}</div></fieldset>`;
+  const nSrc = prompt.sources.length;
+  main().innerHTML = `<div class="wrap narrowish stack">
+    <div class="card"><div class="kicker">${esc(prompt.unit || 'QUESTION')}</div><h1 style="margin-top:6px">${esc(prompt.question || 'Type your question below.')}</h1>
+      <p class="muted small">${nSrc} source${nSrc === 1 ? '' : 's'} to use · You'll write your finished CER on paper</p></div>
+    ${openForm}${version}${meta.seenSteps ? recallCard() : introCard()}
+    <div class="row"><button class="btn" type="button" data-act="begin">${meta.seenSteps ? 'Start' : 'Got It. Start'}</button>
+      <a href="/">Pick a different question</a><span class="spacer"></span>
+      <button class="btn quiet small" type="button" data-act="reset">Start Over</button></div>
+  </div>`;
+  focusMain();
 }
 
 // First visit: teach the steps with an example. Later visits: recall them, never a gate.
@@ -184,292 +155,309 @@ function introCard() {
   return `<div class="card"><h2>Meet the Six Steps</h2>
     <p class="small muted">Every CER follows the same six steps. The examples answer a practice question: <i>${esc(EXAMPLE.question)}</i></p>
     <ol class="intro">${STEPS.map((s) => `<li><b>${esc(s.t)}</b> ${esc(s.line)}<span class="ex">Example: ${esc(s.ex)}</span></li>`).join('')}</ol>
-    <p class="small">The steps stay at the top of the screen while you work. You'll learn them by heart as you go.</p></div>`;
+    <p class="small">The steps stay at the top of the screen while you work.</p></div>`;
 }
 function recallCard() {
-  return `<div class="card"><h2>Warm-Up: The Six Steps From Memory</h2>
-    <p class="muted small">Optional. Type the steps you remember, then check yourself. Tap Show Me if you're stuck.</p>
-    <div class="warm" id="warm">${[1, 2, 3, 4, 5, 6].map((i) => `<div class="wrow"><label for="w${i}"><span>${i}</span><input type="text" id="w${i}" autocomplete="off"></label><button class="btn quiet small" type="button" data-act="showme" data-i="${i - 1}" aria-label="Show step ${i}">Show Me</button></div>`).join('')}</div>
-    <div class="row" style="margin-top:12px"><button class="btn ghost" type="button" data-act="warmcheck">Check Me</button><span id="warmout" class="small" aria-live="polite"></span></div></div>`;
+  return `<details class="card warmcard"><summary><b>Warm-Up: The Six Steps From Memory</b> <span class="small muted">(optional)</span></summary>
+    <div class="warm" id="warm">${STEPS.map((s, i) => `<div class="wrow"><label for="w${i + 1}"><span>${i + 1}</span><input type="text" id="w${i + 1}" autocomplete="off"></label><button class="btn quiet small" type="button" data-act="showme" data-i="${i}" aria-label="Show step ${i + 1}">Show Me</button></div>`).join('')}</div>
+    <div class="row" style="margin-top:12px"><button class="btn ghost small" type="button" data-act="warmcheck">Check Me</button><span id="warmout" class="small" aria-live="polite"></span></div></details>`;
 }
 
 function customSourceRow(s, i) {
   return `<div class="logrow"><div class="head"><span class="num">Source ${i + 1}</span><span class="spacer"></span><button class="btn quiet small" type="button" data-act="delsrc" data-i="${i}">Remove</button></div>
     <div class="cols"><div class="field"><label for="st${i}">Title</label><input type="text" id="st${i}" data-src="${i}.title" value="${esc(s.title)}"></div>
     <div class="field"><label for="su${i}">Link (optional)</label><input type="url" id="su${i}" data-src="${i}.url" value="${esc(s.url)}"></div>
-    <div class="field wide"><label for="se${i}">Key words or quote you will use</label><textarea id="se${i}" class="short" data-src="${i}.excerpt">${esc(s.excerpt)}</textarea></div>
-    <div class="field wide"><label for="sc${i}">Citation: who made it, and when?</label><input type="text" id="sc${i}" data-src="${i}.citation" value="${esc(s.citation)}"></div></div></div>`;
+    <div class="field wide"><label for="sc${i}">Who made it, and when?</label><input type="text" id="sc${i}" data-src="${i}.citation" value="${esc(s.citation)}"></div></div></div>`;
 }
 
-function sourceList() {
-  if (!prompt.sources.length) return '';
-  return `<div class="card"><h2>Sources for This Question</h2><div class="stack" style="margin-top:10px">${prompt.sources.map((s, i) =>
-    `<div class="row small"><span class="kicker" style="width:64px">${esc((s.type || 'link').toUpperCase())}</span><span>${i + 1}. ${esc(s.title || 'Source')}</span></div>`).join('')}</div></div>`;
-}
-
-// ---------------------------------------------------------------- field rendering
+// ---------------------------------------------------------------- shared pieces
+// One field. Help comes from the support level for this move, or from the step's Stuck? button.
 function field(key, path, move, opts = {}) {
   const f = F[key];
   const L = lvl(move);
   const id = 'f_' + path.replace(/\./g, '_');
   const val = getPath(path) || '';
-  const showQ = L <= 2 || revealed['q:' + path];
-  const label = opts.label || (showQ ? f.q : f.short);
+  const help = L === 1 || stuck;
+  const label = opts.label || (L <= 2 || stuck ? f.q : f.short);
   const starter = opts.starter ?? f.starter;
-  let extra = '';
-  if (starter && L === 1) extra = `<div class="starter">Start like this: ${esc(starter)}</div>`;
-  else if (starter && L === 2) extra = revealed['s:' + path]
-    ? `<div class="starter">Start like this: ${esc(starter)}</div>`
-    : `<div><button class="btn quiet small" type="button" data-act="stuck" data-path="${path}" data-move="${move}">Stuck? See a Starter</button></div>`;
-  else if (L >= 3 && !showQ) extra = `<div><button class="btn quiet small" type="button" data-act="showq" data-path="${path}" data-move="${move}">Show the Question</button></div>`;
+  const ph = help && starter ? `placeholder="${esc(starter)}..."` : '';
   const tag = f.rows <= 1
-    ? `<input type="text" id="${id}" data-bind="${path}" value="${esc(val)}" ${L === 1 && starter ? `placeholder="${esc(starter)}..."` : ''}>`
-    : `<textarea id="${id}" data-bind="${path}" rows="${f.rows}" ${f.rows <= 2 ? 'class="short"' : ''} ${L === 1 && starter ? `placeholder="${esc(starter)}..."` : ''}>${esc(val)}</textarea>`;
-  return `<div class="field" data-field="${path}"><label for="${id}">${esc(label)}${opts.note ? ` <span class="hint">${esc(opts.note)}</span>` : ''}</label>${extra}${tag}<div class="pushslot" id="push_${id}" aria-live="polite"></div></div>`;
+    ? `<input type="text" id="${id}" data-bind="${path}" value="${esc(val)}" ${ph}>`
+    : `<textarea id="${id}" data-bind="${path}" rows="${f.rows}" ${f.rows <= 2 ? 'class="short"' : ''} ${ph}>${esc(val)}</textarea>`;
+  return `<div class="field ${opts.cls || ''}" data-field="${path}"><label for="${id}">${esc(label)}${opts.note ? ` <span class="hint">${esc(opts.note)}</span>` : ''}</label>
+    ${help && starter ? `<div class="starter">Start like this: ${esc(starter)}</div>` : ''}${tag}<div class="pushslot" id="push_${id}" aria-live="polite"></div></div>`;
 }
 
-function exampleBox(move, html) {
-  const L = lvl(move);
-  if (L === 1) return `<div class="example"><span class="kicker">EXAMPLE, DIFFERENT QUESTION: ${esc(EXAMPLE.question.toUpperCase())}</span>${html}</div>`;
-  if (L === 2) return `<details class="example"><summary><b>See an Example (Different Question)</b></summary><p class="muted small">${esc(EXAMPLE.question)}</p>${html}</details>`;
-  return '';
-}
-// Plain word lists show inline; a teacher word bank with "term: definition" lines shows as a list.
-function bank(label, ws) {
-  const split = ws.map((w) => { const i = w.indexOf(':'); return i > 0 ? [w.slice(0, i).trim(), w.slice(i + 1).trim()] : [w.trim(), '']; });
-  if (!split.some(([, d]) => d)) return `<div class="bank"><b>${esc(label)}:</b>${split.map(([t]) => esc(t)).join(' · ')}</div>`;
-  return `<div class="bank"><b>${esc(label)}</b><dl class="terms">${split.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join('')}</dl></div>`;
+// Tap-to-pick pills (task words, strength).
+function pills(name, path, options, labelFn = (o) => o) {
+  const cur = String(getPath(path) || '');
+  return `<div class="pills" role="radiogroup">${options.map((o) => `<label class="pill-opt ${cur === String(o) ? 'on' : ''}"><input type="radio" name="${name}" data-bind="${path}" value="${esc(o)}" ${cur === String(o) ? 'checked' : ''}>${esc(labelFn(o))}</label>`).join('')}</div>`;
 }
 
-// ---------------------------------------------------------------- stations
-function renderStation(n) {
-  const st = STATIONS[n - 1];
+function exampleHTML(n) {
+  const e = EXAMPLE;
+  const body = {
+    1: `<p>${esc(e.own)}</p>`,
+    2: `<p><b>Says:</b> ${esc(e.log.says)}<br><b>Who and when:</b> ${esc(e.log.who)}<br><b>Where:</b> ${esc(e.log.where)}<br><b>Shows:</b> ${esc(e.log.shows)}</p>`,
+    3: `<p>${esc(e.first)}</p>`,
+    4: `<p>${esc(STEPS[3].ex)}</p>`,
+    5: `<p><b>Shows:</b> ${esc(e.rshows)}<br><b>Proves:</b> ${esc(e.proves)}<br><b>Connects:</b> ${esc(e.connects)}</p>`,
+    6: `<p>${esc(e.counter)}<br>${esc(e.answer)}</p>`,
+  }[n];
+  return `<div class="example"><span class="kicker">EXAMPLE, DIFFERENT QUESTION: ${esc(e.question.toUpperCase())}</span>${body}</div>`;
+}
+
+function wordBankHTML() {
+  const split = prompt.wordBank.map((w) => { const i = w.indexOf(':'); return i > 0 ? [w.slice(0, i).trim(), w.slice(i + 1).trim()] : [w.trim(), '']; });
+  if (!split.some(([, d]) => d)) return `<div class="bank"><b>Word Bank:</b> ${split.map(([t]) => esc(t)).join(' · ')}</div>`;
+  return `<div class="bank"><b>Word Bank</b><dl class="terms">${split.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join('')}</dl></div>`;
+}
+
+// The step header: title, one guiding question, and quiet help buttons.
+function stepHeader(n) {
+  const s = STEPS[n - 1];
+  const L = lvl(s.move);
+  const tools = [];
+  if (L === 2) tools.push(`<button class="btn quiet small" type="button" data-act="toggle" data-t="ex" aria-expanded="false">See an Example</button>`);
+  if (prompt.wordBank.length) tools.push(`<button class="btn quiet small" type="button" data-act="toggle" data-t="bank" aria-expanded="false">Word Bank</button>`);
+  if (L >= 2 && !stuck) tools.push(`<button class="btn quiet small" type="button" data-act="stuck" data-move="${s.move}">Stuck?</button>`);
+  return `<div class="stephead"><div><div class="kicker">STEP ${n} OF 6</div><h1>${esc(s.title)}</h1><p class="ask">${esc(s.ask)}</p></div>
+      ${tools.length ? `<div class="tools">${tools.join('')}</div>` : ''}</div>
+    ${L === 1 ? exampleHTML(n) : `<div id="tool_ex" hidden>${exampleHTML(n)}</div>`}
+    ${prompt.wordBank.length ? `<div id="tool_bank" hidden>${wordBankHTML()}</div>` : ''}`;
+}
+
+// ---------------------------------------------------------------- the steps
+function renderStep(n) {
   paintChrome(n);
-  if (n === 8) return renderCheck();
-  const L = lvl(st.move);
+  const s = STEPS[n - 1];
   let body = '';
+  let nextLabel = n === 6 ? 'Check My Work' : 'Next';
 
-  if (st.id === 'unpack') {
-    body = field('task', 'unpack.task', 'claim') + (L === 1 ? bank('Task words', TASK_WORDS) : '') +
-      field('words', 'unpack.words', 'claim') + field('own', 'unpack.own', 'claim') +
-      exampleBox('claim', `<p>${esc(EXAMPLE.own)}</p>`);
+  if (s.id === 'read') {
+    body = `<fieldset class="field" data-field="unpack.task"><legend class="q">What does the question ask you to do?</legend>
+        ${pills('task', 'unpack.task', TASK_WORDS)}<div class="pushslot" id="push_task" aria-live="polite"></div></fieldset>` +
+      field('own', 'unpack.own', 'claim');
   }
 
-  if (st.id === 'gather') {
+  if (s.id === 'find') {
     const need = evidenceNeeded(work.version);
-    body = `<p class="small muted">Log every piece that might help, at least ${need + 1}. Rate how directly it answers the question: 3 proves it, 2 helps, 1 barely.</p>` +
-      exampleBox('evidence', `<p><b>Says:</b> ${esc(EXAMPLE.log.says)}<br><b>Who and when:</b> ${esc(EXAMPLE.log.who)}<br><b>Where:</b> ${esc(EXAMPLE.log.where)}<br><b>Shows:</b> ${esc(EXAMPLE.log.shows)}<br><b>Strength:</b> 3</p>`) +
-      `<div class="log">${work.log.map((r, i) => logRow(i)).join('')}</div>
-      <div class="row"><button class="btn quiet small" type="button" data-act="addrow">Add a Row</button></div><div class="pushslot" id="push_logcount" aria-live="polite"></div>`;
+    if (openRow >= work.log.length) openRow = work.log.length - 1;
+    body = `<p class="small muted">Find at least ${need + 1} pieces of evidence, so you have choices later.</p>
+      <div class="log">${work.log.map((r, i) => (i === openRow ? logRowOpen(i) : logRowShut(i))).join('')}</div>
+      <div class="row"><button class="btn quiet small" type="button" data-act="addrow">Add Another Piece</button></div>
+      <div class="pushslot" id="push_logcount" aria-live="polite"></div>`;
   }
 
-  if (st.id === 'claim') {
-    body = field('first', 'claim.first', 'claim') + (L === 1 ? bank('Helpful words', HELP_WORDS) : '') +
-      exampleBox('claim', `<p>${esc(EXAMPLE.first)}</p>`) +
-      `<fieldset class="field" data-field="claim.tests"><legend class="q" style="font-weight:800">Test your claim. Check each box that is true.</legend><div class="checks">
-        ${chk('claim.tests.answers', 'It answers the question at the top.')}${chk('claim.tests.disagree', 'Someone could disagree with it.')}${chk('claim.tests.provable', 'Evidence from my log can prove it.')}
+  if (s.id === 'answer') {
+    body = field('first', 'claim.first', 'claim') +
+      `<fieldset class="field" data-field="claim.tests"><legend class="q">Test your claim. Check each one that is true.</legend><div class="checks">
+        ${chk('claim.tests.answers', 'It answers the question.')}${chk('claim.tests.disagree', 'Someone could disagree with it.')}${chk('claim.tests.provable', 'My evidence can prove it.')}
       </div><div class="pushslot" id="push_tests" aria-live="polite"></div></fieldset>`;
   }
 
-  if (st.id === 'choose') {
+  if (s.id === 'prove') {
     const need = evidenceNeeded(work.version);
     const rows = work.log.map((r, i) => ({ r, i })).filter(({ r }) => r.says.trim());
-    body = `<p>Choose the <b>${need}</b> that prove your claim best, strongest first.</p>
+    body = `<p>Pick the <b>${need}</b> that prove your claim best. Tap the strongest first.</p>
       <div class="pick">${rows.map(({ r, i }) => {
         const rank = work.chosen.indexOf(i);
         return `<label><input type="checkbox" data-act="pick" data-i="${i}" ${rank > -1 ? 'checked' : ''}><span>${esc(r.says)}<br><span class="small muted">${esc(r.who)}${r.strength ? ` · strength ${esc(r.strength)}` : ''}</span></span>${rank > -1 ? `<span class="rankno">#${rank + 1}</span>` : ''}</label>`;
-      }).join('') || '<p class="muted">Log some evidence at Station 3 first.</p>'}</div>
+      }).join('') || '<p class="muted">Find some evidence in Step 2 first.</p>'}</div>
       <div class="pushslot" id="push_choose" aria-live="polite"></div>`;
   }
 
-  if (st.id === 'reason') {
+  if (s.id === 'explain') {
     const N = work.chosen.length;
     if (rung >= N) rung = Math.max(0, N - 1);
     const i = work.chosen[rung];
     const r = work.log[i];
-    const tabs = N > 1 ? `<div class="rungnav" role="group" aria-label="Evidence">${work.chosen.map((_, k) =>
+    const nav = N > 1 ? `<div class="rungnav" role="group" aria-label="Evidence">${work.chosen.map((_, k) =>
       `<button type="button" class="btn small ${k === rung ? '' : 'quiet'}" data-act="rung" data-k="${k}" ${k === rung ? 'aria-current="true"' : ''}>Evidence ${k + 1}</button>`).join('')}</div>` : '';
-    body = (N ? `${tabs}<div class="rung"><h3>Evidence ${rung + 1} of ${N}</h3><div class="ev">${esc(r.says)} <span class="muted small">(${esc(r.who)}${r.where ? ', ' + esc(r.where) : ''})</span></div>
-          ${field('rshows', `reasoning.${i}.shows`, 'reasoning')}${field('proves', `reasoning.${i}.proves`, 'reasoning')}${field('connects', `reasoning.${i}.connects`, 'reasoning')}</div>`
-      : '<p class="muted">Choose your evidence at Station 5 first.</p>') +
-      exampleBox('reasoning', `<p><b>Shows:</b> ${esc(EXAMPLE.rshows)}<br><b>Proves:</b> ${esc(EXAMPLE.proves)}<br><b>Connects:</b> ${esc(EXAMPLE.connects)}</p>`) +
-      (prompt.wordBank?.length && L <= 2 ? bank('Ideas from class', prompt.wordBank) : '');
+    body = N ? `${nav}<div class="rung"><div class="ev"><b>Evidence ${rung + 1} of ${N}:</b> ${esc(r.says)} <span class="muted small">(${esc(r.who)}${r.where ? ', ' + esc(r.where) : ''})</span></div>
+        ${field('rshows', `reasoning.${i}.shows`, 'reasoning')}${field('proves', `reasoning.${i}.proves`, 'reasoning')}${field('connects', `reasoning.${i}.connects`, 'reasoning')}</div>`
+      : '<p class="muted">Pick your evidence in Step 4 first.</p>';
+    if (rung < N - 1) nextLabel = 'Next Evidence';
   }
 
-  if (st.id === 'stress') {
-    const req = needsCounter(work.version);
-    body = field('counter', 'stress.counter', 'claim', { note: req ? '' : '(optional challenge)' }) +
-      field('answer', 'stress.answer', 'claim', { note: req ? '' : '(optional challenge)' }) +
-      exampleBox('claim', `<p>${esc(EXAMPLE.counter)}<br>${esc(EXAMPLE.answer)}</p>`) +
-      field('final', 'stress.final', 'claim');
-  }
+  if (s.id === 'check') return renderCheck();
 
   main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
       ${questionCard(n)}
-      <div class="row"><h1>${esc(st.title)}</h1></div>
+      ${stepHeader(n)}
       <div class="card stack">${body}</div>
       <div class="pushslot" id="push_self" aria-live="polite"></div>
-      <div class="row"><a href="#/s/${n - 1}">Back</a><span class="spacer"></span><button class="btn" type="button" data-act="next" data-n="${n}">${nextLabel(n)}</button></div>
-    </div><div class="side">${viewer()}${askYourself(n)}</div></div></div>`;
+      <div class="row"><a href="#/s/${n - 1}">Back</a><span class="spacer"></span><button class="btn" type="button" data-act="next" data-n="${n}">${nextLabel}</button></div>
+    </div><div class="side">${sourcePanel()}</div></div></div>`;
   focusMain();
-}
-
-function nextLabel(n) {
-  if (n === 6 && rung < work.chosen.length - 1) return 'Next Evidence';
-  return n === 7 ? 'Go to Check' : 'Next';
 }
 
 const chk = (path, text) => `<label><input type="checkbox" data-bind="${path}" ${getPath(path) ? 'checked' : ''}>${esc(text)}</label>`;
 
-function logRow(i) {
+// ---------------------------------------------------------------- Find: one evidence row open at a time
+function srcFor(row) { return row.src !== '' && row.src !== 'other' ? prompt.sources[+row.src] : null; }
+
+function logRowOpen(i) {
   const r = work.log[i];
   const L = lvl('evidence');
-  const lab = (k) => (L <= 2 ? F[k].q : F[k].short);
-  const inp = (k, wide) => {
+  const src = srcFor(r);
+  const isVideo = src?.type === 'video';
+  const lab = (k) => (L <= 2 || stuck ? F[k].q : F[k].short);
+  const opts = prompt.sources.map((s, k) => `<option value="${k}" ${String(r.src) === String(k) ? 'selected' : ''}>${k + 1}. ${esc(s.title || 'Source')}</option>`).join('');
+  const input = (k, labelKey = k, multi = false) => {
     const id = `f_log_${i}_${k}`;
-    const multi = F[k].rows > 1;
-    return `<div class="field ${wide ? 'wide' : ''}" data-field="log.${i}"><label for="${id}">${esc(lab(k))}</label>${multi
+    return `<div class="field ${multi ? 'wide' : ''}"><label for="${id}">${esc(lab(labelKey))}</label>${multi
       ? `<textarea id="${id}" class="short" data-bind="log.${i}.${k}">${esc(r[k])}</textarea>`
       : `<input type="text" id="${id}" data-bind="log.${i}.${k}" value="${esc(r[k])}">`}</div>`;
   };
-  return `<div class="logrow"><div class="head"><span class="num">${i + 1}</span>
-    <fieldset class="strength"><legend class="small">Strength</legend>${[1, 2, 3].map((s) => `<label><input type="radio" name="str${i}" data-bind="log.${i}.strength" value="${s}" ${String(r.strength) === String(s) ? 'checked' : ''}>${s}</label>`).join('')}</fieldset>
-    <span class="spacer"></span>${work.log.length > 1 ? `<button class="btn quiet small" type="button" data-act="delrow" data-i="${i}" aria-label="Remove row ${i + 1}">Remove</button>` : ''}</div>
-    <div class="cols">${inp('says', true)}${inp('who')}${inp('where')}${inp('shows', true)}</div>
-    <div class="pushslot" id="push_log_${i}" aria-live="polite"></div></div>`;
+  return `<div class="logrow open"><div class="head"><span class="num">Evidence ${i + 1}</span><span class="spacer"></span>
+      ${work.log.length > 1 ? `<button class="btn quiet small" type="button" data-act="delrow" data-i="${i}" aria-label="Remove evidence ${i + 1}">Remove</button>` : ''}</div>
+    <div class="cols">
+      <div class="field wide"><label for="f_log_${i}_src">Which source is it from?</label>
+        <select id="f_log_${i}_src" data-act="pickSrc" data-i="${i}"><option value="">Choose a source</option>${opts}<option value="other" ${r.src === 'other' ? 'selected' : ''}>Something else (notes, class reading)</option></select>
+        ${src ? `<div class="small muted">${esc(r.who)}</div>` : ''}</div>
+      ${r.src === 'other' ? input('who') : ''}
+      ${input('says', 'says', true)}
+      ${input('where', isVideo ? 'whereVideo' : 'where')}
+      ${input('shows', 'shows', true)}
+      <div class="field wide"><span class="q small">How well does it answer the question?</span>
+        ${pills(`str${i}`, `log.${i}.strength`, ['3', '2', '1'], (o) => ({ 3: '3 Proves it', 2: '2 Helps', 1: '1 Barely' }[o]))}</div>
+    </div><div class="pushslot" id="push_log_${i}" aria-live="polite"></div></div>`;
 }
 
-function askYourself(n) {
-  const k = STATION_STEP[n];
-  const s = STEPS[k];
-  if (!s) return '';
-  return `<div class="card askself"><b>Step ${k + 1}: ${esc(s.t)}</b><ul>${s.qs.map((q) => `<li>${esc(q)}</li>`).join('')}</ul></div>`;
+function logRowShut(i) {
+  const r = work.log[i];
+  const summary = r.says.trim() ? esc(r.says.length > 90 ? r.says.slice(0, 90) + '...' : r.says) : '<span class="muted">Empty</span>';
+  return `<button type="button" class="logrow shut" data-act="openrow" data-i="${i}" aria-label="Open evidence ${i + 1}">
+    <span class="num">Evidence ${i + 1}</span><span class="sum">${summary}</span><span class="edit">Edit</span></button>
+    <div class="pushslot" id="push_log_${i}" aria-live="polite"></div>`;
 }
 
-// ---------------------------------------------------------------- source viewer
-function viewer() {
+// ---------------------------------------------------------------- sources (side panel; a drawer on phones)
+function sourcePanel() {
   const srcs = prompt.sources || [];
-  if (!srcs.length) return `<div class="card"><h2>Sources</h2><p class="muted small">No sources are attached to this question. Use your class readings and notes.</p></div>`;
+  if (!srcs.length) return `<div class="card"><h2>Sources</h2><p class="muted small">No sources are attached. Use your class readings and notes.</p></div>`;
+  return `<details class="srcdrawer" ${wide() ? 'open' : ''}><summary class="btn ghost">Sources (${srcs.length})</summary>${viewer()}</details>`;
+}
+
+function viewer() {
+  const srcs = prompt.sources;
   if (sourceTab >= srcs.length) sourceTab = 0;
   const s = srcs[sourceTab];
+  const t = s.type || 'link';
   const tabs = srcs.map((x, i) => `<button type="button" role="tab" aria-selected="${i === sourceTab}" data-act="tab" data-i="${i}">${i + 1} ${esc(labelType(x.type))}</button>`).join('');
   let content = '';
-  const t = s.type || 'link';
   if (t === 'excerpt' || t === 'link') content = s.excerpt ? `<blockquote>${esc(s.excerpt)}</blockquote>` : '';
   if (t === 'pdf') content = `<iframe src="${esc(s.file)}" title="${esc(s.title || 'PDF source')}"></iframe>`;
   if (t === 'image') content = `<img src="${esc(s.file)}" alt="${esc(s.alt || s.title || '')}">`;
   if (t === 'doc') content = `${s.excerpt ? `<blockquote>${esc(s.excerpt)}</blockquote>` : ''}<p><a href="${esc(s.file)}" download>Download the document</a></p>`;
-  const open = s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">Open the full original</a>` : '';
-  return `<section class="card viewer" aria-label="Source viewer"><div class="tabs" role="tablist">${tabs}</div>
+  if (t === 'video') {
+    const id = youtubeId(s.url);
+    const start = toSeconds(s.start);
+    content = id ? `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${esc(id)}?rel=0${start ? `&start=${start}` : ''}" title="${esc(s.title || 'Video source')}" allow="encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+      <p class="small muted">Pause on a quote you want. Write down the exact words and the time.</p>${s.excerpt ? `<blockquote>${esc(s.excerpt)}</blockquote>` : ''}` : '';
+  }
+  const open = s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${t === 'video' ? 'Open on YouTube' : 'Open the full original'}</a>` : '';
+  return `<section class="card viewer" aria-label="Sources"><div class="tabs" role="tablist">${tabs}</div>
     <div class="body"><div class="kicker">SOURCE ${sourceTab + 1} · ${esc(labelType(t).toUpperCase())}</div><h3>${esc(s.title || '')}</h3>
     ${s.note ? `<p class="small muted">${esc(s.note)}</p>` : ''}${content}
-    ${s.citation ? `<div class="cite"><b>Citation:</b> ${esc(s.citation)}</div>` : ''}${open}
-    <div class="askself"><b>Ask yourself</b><ul><li>Who made this source, and when?</li><li>Who is not speaking in this source?</li></ul></div></div></section>`;
+    ${s.citation ? `<div class="cite"><b>Citation:</b> ${esc(s.citation)}</div>` : ''}${open}</div></section>`;
 }
-const labelType = (t) => ({ excerpt: 'Excerpt', pdf: 'PDF', image: 'Image', doc: 'Doc', link: 'Link' }[t] || 'Source');
+const labelType = (t) => ({ excerpt: 'Excerpt', pdf: 'PDF', image: 'Image', doc: 'Doc', link: 'Link', video: 'Video' }[t] || 'Source');
 
-// ---------------------------------------------------------------- checks per station
+// ---------------------------------------------------------------- push-back, one question at a time
 function flagsFor(n) {
   const out = [];
-  const add = (slot, res, move) => res && out.push({ slot, move, ...res });
+  const add = (slot, res) => res && out.push({ slot, ...res });
   const ctx = ctxBase();
+  if (n === 1) {
+    add('task', work.unpack.task ? null : { title: 'What does the question ask you to do?', nudge: 'Tap one: decide, explain why, compare...' });
+    add('f_unpack_own', RULES.own(work.unpack.own, ctx));
+  }
   if (n === 2) {
-    add('f_unpack_task', RULES.task(work.unpack.task), 'claim');
-    add('f_unpack_own', RULES.own(work.unpack.own, ctx), 'claim');
+    work.log.forEach((r, i) => {
+      if (r.says.trim() && !r.src) add(`log_${i}`, { title: 'Which source is this from?', nudge: 'Pick it from the list so someone can check it.' });
+      else add(`log_${i}`, RULES.logRow(r));
+    });
+    add('logcount', RULES.logCount(work.log, evidenceNeeded(work.version)));
   }
   if (n === 3) {
-    work.log.forEach((r, i) => add(`log_${i}`, RULES.logRow(r), 'evidence'));
-    add('logcount', RULES.logCount(work.log, evidenceNeeded(work.version)), 'evidence');
+    add('f_claim_first', RULES.claim(work.claim.first, ctx));
+    add('tests', RULES.claimTests(work.claim.tests));
   }
-  if (n === 4) {
-    add('f_claim_first', RULES.claim(work.claim.first, ctx), 'claim');
-    add('tests', RULES.claimTests(work.claim.tests), 'claim');
-  }
-  if (n === 5) add('choose', RULES.choose(work.chosen, work.log, evidenceNeeded(work.version)), 'evidence');
-  if (n === 6) {
-    work.chosen.filter((_, k) => k === rung).forEach((i) => {
+  if (n === 4) add('choose', RULES.choose(work.chosen, work.log, evidenceNeeded(work.version)));
+  if (n === 5) {
+    const i = work.chosen[rung];
+    if (i !== undefined) {
       const r = work.reasoning[i] || {};
-      add(`f_reasoning_${i}_shows`, RULES.rshows(r.shows || ''), 'reasoning');
-      add(`f_reasoning_${i}_proves`, RULES.proves(r.proves || '', { says: work.log[i]?.says }), 'reasoning');
-      add(`f_reasoning_${i}_connects`, RULES.connects(r.connects || ''), 'reasoning');
-    });
+      add(`f_reasoning_${i}_shows`, RULES.rshows(r.shows || ''));
+      add(`f_reasoning_${i}_proves`, RULES.proves(r.proves || '', { says: work.log[i]?.says }));
+      add(`f_reasoning_${i}_connects`, RULES.connects(r.connects || ''));
+    }
   }
-  if (n === 7) {
+  if (n === 6) {
     const required = needsCounter(work.version);
-    add('f_stress_counter', RULES.counter(work.stress.counter, { required }), 'claim');
-    add('f_stress_answer', RULES.answer(work.stress.answer, { required, counter: work.stress.counter.trim() }), 'claim');
-    add('f_stress_final', RULES.final(work.stress.final, ctx), 'claim');
+    add('f_stress_counter', RULES.counter(work.stress.counter, { required }));
+    add('f_stress_answer', RULES.answer(work.stress.answer, { required, counter: work.stress.counter.trim() }));
+    add('f_stress_final', RULES.final(work.stress.final, ctx));
   }
   return out;
 }
 
-function snapshot(n) { return JSON.stringify([n, work.unpack, work.log, work.claim, work.chosen, work.reasoning, work.stress]); }
+const snapshot = (n) => JSON.stringify([n, rung, work.unpack, work.log, work.claim, work.chosen, work.reasoning, work.stress]);
 
 function onNext(n) {
   document.querySelectorAll('.pushslot').forEach((el) => { el.innerHTML = ''; });
   document.querySelectorAll('.flagged').forEach((el) => el.classList.remove('flagged'));
-  const st = STATIONS[n - 1];
-  const L = lvl(st.move);
-  // Solo: no inline push-back; the Check station runs the checks.
-  const flags = L >= 4 ? [] : flagsFor(n);
+  const L = lvl(STEPS[n - 1].move);
+  // Solo: no push-back while working; the Check step still runs the checks.
+  const flags = L >= 4 && n !== 6 ? [] : flagsFor(n);
   if (flags.length) {
     const snap = snapshot(n);
-    if (pending === snap) { advance(n); return; }      // second Next with nothing changed: keep going
-    if (L === 3 && !selfShown) {                       // Prompted: ask the student first
+    if (pending === snap) { advance(n); return; }
+    if (L === 3 && !selfShown) {
       selfShown = true;
       $('#push_self').innerHTML = `<div class="push self"><span class="mark">?</span><div><b>${esc(SELF_QUESTION)}</b>
-        <span class="small">Fix anything you notice, then press Next. Or <button class="btn quiet small" type="button" data-act="coachq" data-n="${n}">Show the Coach's Question</button></span></div></div>`;
-      pending = null;
+        <span class="small">Fix anything you notice, then tap Next. Or <button class="btn quiet small" type="button" data-act="coachq" data-n="${n}">Show the Coach's Question</button></span></div></div>`;
       return;
     }
-    showFlags(flags);
+    showFlag(flags[0], n);
     pending = snap;
-    $('#push_self').innerHTML = `<p class="small muted">Fix what the Coach asked about, or press Next again to keep your answers as they are.</p>`;
     return;
   }
   advance(n);
 }
 
-// Reasoning moves through the evidence one piece at a time before leaving the station.
+function showFlag(f, n) {
+  // Find: open the row the question is about.
+  const m = /^log_(\d+)$/.exec(f.slot);
+  if (n === 2 && m && +m[1] !== openRow) { openRow = +m[1]; renderStep(2); }
+  const slot = document.getElementById(`push_${f.slot}`) || $('#push_self');
+  slot.innerHTML = `<div class="push" role="status"><span class="mark">?</span><div><b>${esc(f.title)}</b>${f.nudge ? `<span class="small">${esc(f.nudge)}</span>` : ''}
+    <span class="small muted">Fix it, or tap ${n === 6 ? 'Check My Work' : 'Next'} again to keep your answer.</span></div></div>`;
+  slot.closest('.field')?.classList.add('flagged');
+  slot.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
 function advance(n) {
-  if (n === 6 && rung < work.chosen.length - 1) {
-    rung += 1; pending = null; selfShown = false; revealed = {};
-    renderStation(6);
-    return;
-  }
-  proceed(n);
-}
-
-function showFlags(flags) {
-  flags.forEach((f, k) => {
-    const slot = document.getElementById(`push_${f.slot}`) || $('#push_self');
-    slot.insertAdjacentHTML('beforeend', `<div class="push" role="status"><span class="mark">?</span><div><b>${esc(f.title)}</b>${f.nudge ? `<span class="small">${esc(f.nudge)}</span>` : ''}</div></div>`);
-    slot.closest('.field')?.classList.add('flagged');
-    if (k === 0) slot.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  });
-}
-
-function proceed(n) {
+  pending = null; selfShown = false;
+  if (n === 5 && rung < work.chosen.length - 1) { rung += 1; stuck = false; renderStep(5); window.scrollTo(0, 0); return; }
+  if (n === 6) { work.check.stage = 'score'; save(); renderCheck(); return; }
   work.done[n] = true; save();
   go(n + 1);
 }
 
-// ---------------------------------------------------------------- check (station 8)
+// ---------------------------------------------------------------- Check: other side + final claim, then score
 function coachResults() {
   const req = needsCounter(work.version);
   const need = evidenceNeeded(work.version);
   const ctx = ctxBase();
   const claimRes = RULES.claim(work.stress.final || work.claim.first, ctx);
   const evRows = work.chosen.map((i) => work.log[i]).filter(Boolean);
-  const evRes = evRows.length < need ? { title: `Use ${need} pieces of evidence.`, nudge: '' }
-    : evRows.map((r) => RULES.logRow(r)).find(Boolean) || null;
+  const evRes = evRows.length < need ? { title: `Use ${need} pieces of evidence.` } : evRows.map((r) => RULES.logRow(r)).find(Boolean) || null;
   const reRes = work.chosen.map((i) => RULES.proves((work.reasoning[i] || {}).proves || '', { says: work.log[i]?.says })).find(Boolean) || null;
-  const out = [
-    { key: 'claim', name: 'Claim', res: claimRes },
-    { key: 'evidence', name: 'Evidence', res: evRes },
-    { key: 'reasoning', name: 'Reasoning', res: reRes },
-  ];
-  if (req) out.push({ key: 'counter', name: 'Counterpoint', res: RULES.counter(work.stress.counter, { required: true }) || RULES.answer(work.stress.answer, { required: true }) });
+  const out = [{ key: 'claim', name: 'Claim', res: claimRes }, { key: 'evidence', name: 'Evidence', res: evRes }, { key: 'reasoning', name: 'Reasoning', res: reRes }];
+  if (req) out.push({ key: 'counter', name: 'Other Side', res: RULES.counter(work.stress.counter, { required: true }) || RULES.answer(work.stress.answer, { required: true }) });
   return out;
 }
 
@@ -480,45 +468,56 @@ function planHTML() {
     const r = work.log[i]; const z = work.reasoning[i] || {};
     rows.push([`Evidence ${k + 1}`, `${r.says} (${r.who}${r.where ? ', ' + r.where : ''})\n» ${z.shows || ''}\n» ${z.proves || ''}${z.connects ? '\n» Connects to: ' + z.connects : ''}`]);
   });
-  if (req || work.stress.counter.trim()) rows.push(['Counterpoint', `${work.stress.counter}\n» ${work.stress.answer}`]);
-  rows.push(['Return', 'Come back to your claim in your last sentence.']);
+  if (req || work.stress.counter.trim()) rows.push(['Other Side', `${work.stress.counter}\n» ${work.stress.answer}`]);
+  rows.push(['End', 'Come back to your claim in your last sentence.']);
   return rows.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b || '(empty)')}</dd>`).join('');
 }
 
 function renderCheck() {
+  paintChrome(6);
   const req = needsCounter(work.version);
-  const parts = [['claim', 'Claim'], ['evidence', 'Evidence'], ['reasoning', 'Reasoning']].concat(req ? [['counter', 'Counterpoint']] : []);
+  if (work.check.stage !== 'score') {
+    main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
+        ${questionCard(6)}${stepHeader(6)}
+        <div class="card stack">
+          ${field('counter', 'stress.counter', 'claim', { note: req ? '' : '(optional)' })}
+          ${field('answer', 'stress.answer', 'claim', { note: req ? '' : '(optional)' })}
+          ${field('final', 'stress.final', 'claim')}
+        </div>
+        <div class="pushslot" id="push_self" aria-live="polite"></div>
+        <div class="row"><a href="#/s/5">Back</a><span class="spacer"></span><button class="btn" type="button" data-act="next" data-n="6">Check My Work</button></div>
+      </div><div class="side">${sourcePanel()}</div></div></div>`;
+    return focusMain();
+  }
+
+  const parts = [['claim', 'Claim'], ['evidence', 'Evidence'], ['reasoning', 'Reasoning']].concat(req ? [['counter', 'Other Side']] : []);
   const allScored = parts.every(([k]) => work.check.self[k]);
   const goal = req ? 'Aim for 9 to 12 sentences.' : 'Aim for 6 to 8 sentences.';
   const scoreRows = parts.map(([k, name]) => `<div class="score" role="group" aria-label="${name} score"><b>${name}</b>${[1, 2, 3, 4].map((p) =>
     `<button type="button" class="pt" data-act="score" data-k="${k}" data-p="${p}" aria-pressed="${work.check.self[k] === p}">${p}</button>`).join('')}</div>`).join('');
-
-  let compare = `<div class="card dashed"><h2>Step 2: Compare With the Coach</h2><p class="muted small">Unlocks after you score every part.</p></div>`;
+  let compare = '';
   if (work.check.revealed) {
-    const res = coachResults();
-    compare = `<div class="card"><h2>Step 2: Compare With the Coach</h2><table class="compare"><thead><tr><th>Part</th><th>You</th><th>Coach</th></tr></thead><tbody>
-      ${res.map((r) => `<tr><td><b>${r.name}</b></td><td>${work.check.self[r.key] || '-'}</td><td>${r.res ? `Needs a look: ${esc(r.res.title)}` : 'Looks solid'}</td></tr>`).join('')}
-      </tbody></table><p class="small muted">When your score and the Coach disagree, reread that part out loud. Who is right?</p></div>`;
+    compare = `<div class="card"><h2>What the Coach Sees</h2><table class="compare"><thead><tr><th>Part</th><th>You</th><th>Coach</th></tr></thead><tbody>
+      ${coachResults().map((r) => `<tr><td><b>${r.name}</b></td><td>${work.check.self[r.key] || '-'}</td><td>${r.res ? `Take a look: ${esc(r.res.title)}` : 'Looks solid'}</td></tr>`).join('')}
+      </tbody></table><p class="small muted">If you and the Coach disagree, reread that part out loud. Who is right?</p></div>
+      <div class="card stack"><h2>Partner Read</h2>
+      <p class="small">Your partner reads your CER out loud, then asks: What does your claim answer? Where is this evidence from? Why does it prove your claim?${req ? ' What about the other side?' : ''}</p>
+      <div class="field"><label for="c_fix">One thing I will fix:</label><input type="text" id="c_fix" data-bind="check.fix" value="${esc(work.check.fix)}"></div>
+      <div class="field"><label for="c_next">Next time I will:</label><input type="text" id="c_next" data-bind="check.next" value="${esc(work.check.next)}"></div>
+      <div class="row"><button class="btn" type="button" data-act="finish" ${work.check.applied ? 'disabled' : ''}>${work.check.applied ? 'Finished' : 'Finish'}</button><span id="finishout" class="small" aria-live="polite">${work.check.applied ? esc(work.check.summary || '') : ''}</span></div></div>`;
   } else if (allScored) {
-    compare = `<div class="card"><h2>Step 2: Compare With the Coach</h2><button class="btn ghost" type="button" data-act="reveal">Show the Coach's Checks</button></div>`;
+    compare = `<div class="row"><button class="btn ghost" type="button" data-act="reveal">See What the Coach Sees</button></div>`;
   }
-
-  const finish = work.check.revealed ? `<div class="card stack"><h2>Step 3: Partner Read and Reflect</h2>
-      <p class="small">Your partner reads your CER out loud, then asks: What question does your claim answer? Where did this evidence come from? Why does that prove your claim?${req ? ' Who would disagree, and what is your answer?' : ''}</p>
-      <div class="field"><label for="c_fix">What is one thing you will fix before you turn it in?</label><input type="text" id="c_fix" data-bind="check.fix" value="${esc(work.check.fix)}"></div>
-      <div class="field"><label for="c_hard">The hardest part was...</label><input type="text" id="c_hard" data-bind="check.hard" value="${esc(work.check.hard)}"></div>
-      <div class="field"><label for="c_next">Next time I will...</label><input type="text" id="c_next" data-bind="check.next" value="${esc(work.check.next)}"></div>
-      <div class="row"><button class="btn" type="button" data-act="finish" ${work.check.applied ? 'disabled' : ''}>${work.check.applied ? 'Finished' : 'Finish'}</button><span id="finishout" class="small" aria-live="polite">${work.check.applied ? esc(work.check.summary || '') : ''}</span></div></div>` : '';
-
   main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work">
-      ${questionCard(8)}
-      <div class="row"><h1>Assemble and Check</h1></div>
-      <div class="card stack"><h2>Your Plan, in Order</h2><p class="small muted">Write your CER on lined paper as full sentences. ${goal}</p>
-        <dl class="planlist">${planHTML()}</dl>
-        <div class="row"><button class="btn" type="button" data-act="print">Print My Plan</button><a href="#/s/7">Back to Stations</a></div></div>
+      ${questionCard(6)}
+      <div class="stephead"><div><div class="kicker">STEP 6 OF 6</div><h1>Score Your Work</h1><p class="ask">Score yourself first. Then see what the Coach thinks.</p></div></div>
+      <div class="card stack"><p class="small muted">4 Exemplary · 3 Proficient · 2 Progressing · 1 Beginning</p>${scoreRows}</div>
+      ${compare}
+      <div class="row"><button class="btn quiet small" type="button" data-act="backother">Back to the Other Side</button></div>
     </div><div class="side">
-      <div class="card stack"><h2>Step 1: Score Yourself First</h2><p class="muted small">4 Exemplary · 3 Proficient · 2 Progressing · 1 Beginning. The Coach's checks stay hidden until you score each part.</p>${scoreRows}</div>
-      ${compare}${finish}
+      <div class="card stack"><h2>Your Plan</h2><p class="small muted">Write your CER on lined paper in full sentences. ${goal}</p>
+        <dl class="planlist">${planHTML()}</dl>
+        <div class="row"><button class="btn" type="button" data-act="print">Print My Plan</button></div></div>
     </div></div></div>`;
   focusMain();
 }
@@ -532,11 +531,10 @@ function applyLevels() {
     const L = levels[m];
     if (!r.res && self >= 3 && work.stuck[m] < 2) {
       L.streak += 1;
-      if (L.streak >= 2 && L.level < 4) { L.level += 1; L.streak = 0; msgs.push(`You've shown you can do ${MOVES[m]} with less help, so the Coach will step back.`); }
+      if (L.streak >= 2 && L.level < 4) { L.level += 1; L.streak = 0; msgs.push(`You're ready to do ${MOVES[m]} with less help.`); }
     } else if (r.res) {
       L.streak = 0;
-      if (L.level > 1 && self >= 3) { /* overrated: hold the level */ }
-      else if (L.level > 1) { L.level -= 1; msgs.push(`${MOVES[m]} gets a little more support next time.`); }
+      if (L.level > 1 && self < 3) { L.level -= 1; msgs.push(`The Coach will give you a little more help with ${MOVES[m]}.`); }
     } else {
       L.streak = 0;
     }
@@ -544,33 +542,29 @@ function applyLevels() {
   saveLevels(levels);
   work.check.applied = true;
   work.check.summary = msgs.length ? msgs.join(' ') : 'Nice work. Keep practicing the six steps.';
-  work.done[8] = true;
+  work.done[6] = true;
   meta.finished = (meta.finished || 0) + 1; saveMeta(meta);
   save();
 }
 
-// ---------------------------------------------------------------- steps card + warm-up
-function renderSteps() {
+// ---------------------------------------------------------------- Steps Card
+function renderStepsCard() {
   paintChrome(0);
-  main().innerHTML = `<div class="wrap"><div class="grid2"><div class="work"><div class="card steps"><h1>The Six Steps</h1>
+  main().innerHTML = `<div class="wrap narrowish stack"><div class="card steps"><h1>The Six Steps</h1>
     <p class="muted">Read the question. Find the evidence. Answer it. Prove it. Explain why. Check it.</p>
-    <ol>${STEPS.map((s) => `<li><b>${esc(s.t)}</b><ul>${s.qs.map((q) => `<li>${esc(q)}</li>`).join('')}</ul></li>`).join('')}</ol></div></div>
-    <div class="side"><div class="card"><h2>Where C, E and R Fit</h2><p><b>Claim</b> answers the question in one sentence someone could disagree with.</p>
-    <p><b>Evidence</b> is facts, quotes or details from sources, with where they came from.</p><p><b>Reasoning</b> explains why the evidence proves the claim, using ideas from class.</p>
-    <p><b>Counterpoint</b> names who would disagree and answers them.</p></div>
-    <p><a href="${prompt ? '#/s/1' : '#/'}">Back</a></p></div></div></div>`;
+    <ol>${STEPS.map((s) => `<li><b>${esc(s.t)}</b> ${esc(s.line)}<ul>${s.qs.map((q) => `<li>${esc(q)}</li>`).join('')}</ul></li>`).join('')}</ol></div>
+    <div class="card"><h2>Where C, E and R Fit</h2><p><b>Claim:</b> one sentence that answers the question and that someone could disagree with.</p>
+    <p><b>Evidence:</b> facts, quotes or details from sources, with where they came from.</p><p><b>Reasoning:</b> why the evidence proves the claim.</p>
+    <p><b>Other side:</b> who would disagree, and your answer to them.</p></div>
+    <p><a href="${prompt ? '#/s/0' : '#/'}">Back</a></p></div>`;
   focusMain();
 }
 
 function warmCheck() {
   const ins = [...document.querySelectorAll('#warm input')];
   let right = 0;
-  ins.forEach((inp, i) => {
-    const ok = STEPS[i].key.test(inp.value);
-    inp.parentElement.classList.toggle('right', ok);
-    if (ok) right++;
-  });
-  const missed = STEPS.map((s, i) => (STEPS[i].key.test(ins[i].value) ? null : `${i + 1}. ${s.t}`)).filter(Boolean);
+  ins.forEach((inp, i) => { const ok = STEPS[i].key.test(inp.value); inp.parentElement.classList.toggle('right', ok); if (ok) right++; });
+  const missed = STEPS.filter((s, i) => !s.key.test(ins[i].value)).map((s) => `${s.n}. ${s.t}`);
   $('#warmout').textContent = right === 6 ? 'All six. Nice.' : `${right} of 6. Check: ${missed.join(' ')}`;
 }
 
@@ -587,58 +581,69 @@ function printPlan() {
 // ---------------------------------------------------------------- events
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.bind && work) {
-    setPath(t.dataset.bind, t.type === 'checkbox' ? t.checked : t.value);
-    save();
-  }
-  if (t.dataset.open && work) { work.custom.question = t.value; prompt.question = t.value; paintChrome(1); save(); }
-  if (t.dataset.src && work) {
-    const [i, k] = t.dataset.src.split('.');
-    work.custom.sources[+i][k] = t.value; save();
-  }
+  if (t.dataset.bind && work && t.type !== 'radio' && t.type !== 'checkbox') { setPath(t.dataset.bind, t.value); save(); }
+  if (t.dataset.open && work) { work.custom.question = t.value; prompt.question = t.value; save(); }
+  if (t.dataset.src && work) { const [i, k] = t.dataset.src.split('.'); work.custom.sources[+i][k] = t.value; save(); }
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
   if (t.name === 'ver' && work) { work.version = t.value; save(); }
-  if (t.dataset.bind && t.type === 'radio') { setPath(t.dataset.bind, t.value); save(); }
+  if (t.dataset.bind && t.type === 'radio') {
+    setPath(t.dataset.bind, t.value); save();
+    t.closest('.pills')?.querySelectorAll('.pill-opt').forEach((l) => l.classList.toggle('on', l.contains(t)));
+  }
   if (t.dataset.bind && t.type === 'checkbox') { setPath(t.dataset.bind, t.checked); save(); }
+  if (t.dataset.act === 'pickSrc') {
+    const i = +t.dataset.i; const row = work.log[i];
+    row.src = t.value;
+    const s = srcFor(row);
+    row.who = s ? (s.citation || s.title || '') : (row.src === 'other' ? '' : row.who);
+    save(); renderStep(2); document.getElementById(`f_log_${i}_says`)?.focus();
+  }
 });
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
-  if (!b) return;
+  if (!b || b.tagName === 'SELECT') return;
   const act = b.dataset.act;
   if (act === 'next') onNext(+b.dataset.n);
-  if (act === 'coachq') { const n = +b.dataset.n; const fl = flagsFor(n); showFlags(fl); pending = snapshot(n); }
-  if (act === 'begin') { work.done[1] = true; save(); if (!meta.seenSteps) { meta.seenSteps = true; saveMeta(meta); } go(2); }
-  if (act === 'showme') { const i = +b.dataset.i; const inp = document.getElementById(`w${i + 1}`); inp.value = STEPS[i].t; inp.parentElement.classList.add('shown'); }
-  if (act === 'rung') { rung = +b.dataset.k; pending = null; selfShown = false; renderStation(6); }
+  if (act === 'coachq') { const n = +b.dataset.n; const fl = flagsFor(n); if (fl.length) showFlag(fl[0], n); pending = snapshot(n); }
+  if (act === 'begin') { work.done[0] = true; save(); if (!meta.seenSteps) { meta.seenSteps = true; saveMeta(meta); } go(1); }
   if (act === 'reset' && confirm('Start over on this question? Your answers for it will be erased.')) { clearWork(prompt.id); prompt = null; route(); }
   if (act === 'warmcheck') warmCheck();
-  if (act === 'stuck' || act === 'showq') {
-    revealed[(act === 'stuck' ? 's:' : 'q:') + b.dataset.path] = true;
+  if (act === 'showme') { const i = +b.dataset.i; const inp = document.getElementById(`w${i + 1}`); inp.value = STEPS[i].t; inp.parentElement.classList.add('shown'); }
+  if (act === 'stuck') {
+    stuck = true;
     work.stuck[b.dataset.move] = (work.stuck[b.dataset.move] || 0) + 1; save();
     const n = +location.hash.split('/')[2];
-    const keep = captureFocus(); renderStation(n); restoreFocus(keep);
+    if (n === 6) renderCheck(); else renderStep(n);
+  }
+  if (act === 'toggle') {
+    const box = document.getElementById(`tool_${b.dataset.t}`);
+    if (box) { box.hidden = !box.hidden; b.setAttribute('aria-expanded', String(!box.hidden)); }
   }
   if (act === 'tab') { sourceTab = +b.dataset.i; const v = $('.viewer'); if (v) v.outerHTML = viewer(); }
-  if (act === 'addrow') { work.log.push(blankRow()); save(); renderStation(3); }
-  if (act === 'delrow') { const i = +b.dataset.i; work.log.splice(i, 1); work.chosen = work.chosen.filter((x) => x !== i).map((x) => (x > i ? x - 1 : x)); save(); renderStation(3); }
+  if (act === 'openrow') { openRow = +b.dataset.i; renderStep(2); }
+  if (act === 'addrow') { work.log.push(blankRow()); openRow = work.log.length - 1; save(); renderStep(2); }
+  if (act === 'delrow') {
+    const i = +b.dataset.i; work.log.splice(i, 1);
+    work.chosen = work.chosen.filter((x) => x !== i).map((x) => (x > i ? x - 1 : x));
+    openRow = Math.max(0, Math.min(openRow, work.log.length - 1)); save(); renderStep(2);
+  }
   if (act === 'pick') {
     const i = +b.dataset.i;
     work.chosen = b.checked ? [...work.chosen, i] : work.chosen.filter((x) => x !== i);
-    save(); renderStation(5);
+    save(); renderStep(4);
   }
+  if (act === 'rung') { rung = +b.dataset.k; pending = null; selfShown = false; stuck = false; renderStep(5); }
   if (act === 'addsrc') { work.custom.sources.push({ type: 'link', title: '', url: '', excerpt: '', citation: '' }); save(); renderStart(); }
   if (act === 'delsrc') { work.custom.sources.splice(+b.dataset.i, 1); save(); renderStart(); }
   if (act === 'score') { work.check.self[b.dataset.k] = +b.dataset.p; save(); renderCheck(); }
   if (act === 'reveal') { work.check.revealed = true; save(); renderCheck(); }
+  if (act === 'backother') { work.check.stage = 'other'; save(); renderCheck(); }
   if (act === 'finish') { applyLevels(); renderCheck(); }
   if (act === 'print') printPlan();
 });
 $('#printBtn').addEventListener('click', printPlan);
-
-function captureFocus() { return document.activeElement?.id; }
-function restoreFocus(id) { if (id) document.getElementById(id)?.focus(); }
 
 window.addEventListener('hashchange', route);
 route();
